@@ -1,0 +1,4 @@
+thumb
+cortex m0
+risc-v rv32i
+compiler explorer

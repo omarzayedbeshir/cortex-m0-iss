@@ -1,0 +1,40 @@
+
+prog.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000100 <main>:
+ 100:	b510      	push	{r4, lr}
+ 102:	4802      	ldr	r0, [pc, #8]	@ (10c <main+0xc>)
+ 104:	f000 f804 	bl	110 <iss_puts>
+ 108:	2000      	movs	r0, #0
+ 10a:	bd10      	pop	{r4, pc}
+ 10c:	00000144 	.word	0x00000144
+
+00000110 <iss_puts>:
+ 110:	df11      	svc	17
+ 112:	4770      	bx	lr
+
+00000114 <iss_exit>:
+ 114:	df00      	svc	0
+ 116:	e7fe      	b.n	116 <iss_exit+0x2>
+
+00000118 <_start>:
+ 118:	4b07      	ldr	r3, [pc, #28]	@ (138 <_start+0x20>)
+ 11a:	4a08      	ldr	r2, [pc, #32]	@ (13c <_start+0x24>)
+ 11c:	b510      	push	{r4, lr}
+ 11e:	4293      	cmp	r3, r2
+ 120:	d204      	bcs.n	12c <_start+0x14>
+ 122:	2100      	movs	r1, #0
+ 124:	7019      	strb	r1, [r3, #0]
+ 126:	3301      	adds	r3, #1
+ 128:	4293      	cmp	r3, r2
+ 12a:	d1fb      	bne.n	124 <_start+0xc>
+ 12c:	4804      	ldr	r0, [pc, #16]	@ (140 <_start+0x28>)
+ 12e:	f7ff ffef 	bl	110 <iss_puts>
+ 132:	2000      	movs	r0, #0
+ 134:	f7ff ffee 	bl	114 <iss_exit>
+ 138:	20000000 	.word	0x20000000
+ 13c:	20000000 	.word	0x20000000
+ 140:	00000144 	.word	0x00000144

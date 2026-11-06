@@ -1,0 +1,1802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>refiss v1.1 - CSCE 2303 reference simulator</title>
+<style>
+  :root { --bg: #fafaf8; --fg: #1d1d1b; --muted: #6b6b66; --panel: #ffffff; --line: #d9d8d2; --accent: #1f3a5f; --ok: #1d6b35; --bad: #a12a2a; --code: #f3f3ef; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #e8e7e2; --muted: #9d9c96; --panel: #1f1f1d; --line: #383835; --accent: #8fb3e0; --ok: #6fcf8f; --bad: #f08a8a; --code: #262624; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 18px 40px; }
+  h1 { font-size: 20px; margin: 0 0 2px; color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 18px; font-size: 13px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+  h2 { font-size: 14px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  textarea, pre { width: 100%; font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  textarea { resize: vertical; }
+  pre { margin: 0; white-space: pre-wrap; word-break: break-all; max-height: 320px; overflow: auto; min-height: 2.4em; }
+  #trace { white-space: pre; word-break: normal; max-height: 420px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  label { font-size: 13px; color: var(--muted); }
+  input[type=number], select { font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--code); color: var(--fg); }
+  input[type=number] { width: 9.5em; }
+  button { font: inherit; font-weight: 600; padding: 6px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg); cursor: pointer; }
+  button.secondary { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { font-weight: 600; }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+  .note { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>refiss v1.1</h1>
+  <p class="sub">CSCE 2303 reference simulator for the Cortex-M0 subset. Everything runs in this page; nothing is uploaded.</p>
+
+  <div class="grid">
+    <section>
+      <h2>Program</h2>
+      <textarea id="program" rows="10" spellcheck="false" placeholder="Paste the readelf dump from Compiler Explorer here"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="secondary" id="openBtn">Open…</button>
+        <input type="file" id="file" accept=".dump,.txt,.bin" hidden>
+        <span class="note" id="fileNote"></span>
+      </div>
+    </section>
+    <section>
+      <h2>Input</h2>
+      <textarea id="stdin" rows="10" spellcheck="false" placeholder="Anything the program reads from stdin"></textarea>
+    </section>
+  </div>
+
+  <section>
+    <div class="row">
+      <label>--seed <input type="number" id="seed" value="2463534242" min="0" max="4294967295"></label>
+      <label>--cpu <select id="cpu"><option value="m0">m0</option><option value="m0plus">m0plus</option></select></label>
+      <label>--max-instr <input type="number" id="maxInstr" value="10000000" min="1"></label>
+      <label><input type="checkbox" id="wantTrace" checked> record trace</label>
+      <button id="runBtn">Run</button>
+      <button class="secondary" id="stopBtn" disabled>Stop</button>
+      <span id="status"></span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section><h2>stdout</h2><pre id="stdout"></pre></section>
+    <section><h2>stderr</h2><pre id="stderr"></pre></section>
+  </div>
+
+  <section>
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Trace</h2>
+      <button class="secondary" id="downloadBtn" disabled>Download trace</button>
+    </div>
+    <pre id="trace" style="margin-top:8px"></pre>
+    <p class="note" id="traceNote"></p>
+  </section>
+
+  <section>
+    <h2>Compare</h2>
+    <textarea id="mine" rows="6" spellcheck="false" placeholder="Paste your own simulator's trace for the same program and input"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="secondary" id="compareBtn">Compare</button>
+      <span id="compareResult"></span>
+    </div>
+    <p class="note">Everything after a semicolon is ignored, as the grader does, so your disassembly comments do not matter.</p>
+  </section>
+
+  <footer>
+    refiss v1.1. The instruction semantics come from CortexM0Core in rp2040js (MIT licence, © 2021 Uri Shaked), with fixes for shift carry flags, ADC/SBC overflow and BLX LR; the rest implements the CSCE 2303 handout. In this page a run stops after --max-instr instructions; the grader allows 100,000,000.
+  </footer>
+</main>
+
+<script>
+/*
+ * CortexM0Core, from rp2040js 1.4.1 (https://github.com/wokwi/rp2040js),
+ * vendored with its three imported constants defined here, the ES module syntax
+ * removed so the file can be loaded as a script, and fixes marked
+ * "CSCE2303 patch" (found by differential and boundary-case
+ * testing against QEMU/Unicorn and checked against the ARMv6-M pseudocode):
+ *   1. LSLS (register): shift > 32 must give C = 0.
+ *   2. LSRS (register): shift of 0 must leave C unchanged.
+ *   3. ASRS (register): shift of 0 must leave C unchanged.
+ *   4. RORS (register): shift of 0 must leave C unchanged.
+ *   5. ADC/SBC: calculate overflow from the original operands and carry input.
+ *   6. BLX: capture the target before writing LR, including BLX LR.
+ *
+ * The MIT License (MIT) - Copyright (c) 2021 Uri Shaked
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ * software and associated documentation files (the "Software"), to deal in the Software
+ * without restriction, including without limitation the rights to use, copy, modify, merge,
+ * publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+ * to whom the Software is furnished to do so, subject to the following conditions:
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+ */
+const MAX_HARDWARE_IRQ = 25;
+const APB_START_ADDRESS = 0x40000000;
+const SIO_START_ADDRESS = 0xd0000000;
+/* eslint-disable @typescript-eslint/no-unused-vars */
+const EXC_RESET = 1;
+const EXC_NMI = 2;
+const EXC_HARDFAULT = 3;
+const EXC_SVCALL = 11;
+const EXC_PENDSV = 14;
+const EXC_SYSTICK = 15;
+const SYSM_APSR = 0;
+const SYSM_IAPSR = 1;
+const SYSM_EAPSR = 2;
+const SYSM_XPSR = 3;
+const SYSM_IPSR = 5;
+const SYSM_EPSR = 6;
+const SYSM_IEPSR = 7;
+const SYSM_MSP = 8;
+const SYSM_PSP = 9;
+const SYSM_PRIMASK = 16;
+const SYSM_CONTROL = 20;
+/* eslint-enable @typescript-eslint/no-unused-vars */
+// Lowest possible exception priority
+const LOWEST_PRIORITY = 4;
+var ExecutionMode;
+(function (ExecutionMode) {
+    ExecutionMode[ExecutionMode["Mode_Thread"] = 0] = "Mode_Thread";
+    ExecutionMode[ExecutionMode["Mode_Handler"] = 1] = "Mode_Handler";
+})(ExecutionMode || (ExecutionMode = {}));
+function signExtend8(value) {
+    return (value << 24) >> 24;
+}
+function signExtend16(value) {
+    return (value << 16) >> 16;
+}
+const spRegister = 13;
+const pcRegister = 15;
+var StackPointerBank;
+(function (StackPointerBank) {
+    StackPointerBank[StackPointerBank["SPmain"] = 0] = "SPmain";
+    StackPointerBank[StackPointerBank["SPprocess"] = 1] = "SPprocess";
+})(StackPointerBank || (StackPointerBank = {}));
+const LOG_NAME = 'CortexM0Core';
+class CortexM0Core {
+    constructor(rp2040) {
+        this.rp2040 = rp2040;
+        this.registers = new Uint32Array(16);
+        this.bankedSP = 0;
+        this.cycles = 0;
+        this.eventRegistered = false;
+        this.waiting = false;
+        // APSR fields
+        this.N = false;
+        this.C = false;
+        this.Z = false;
+        this.V = false;
+        // How many bytes to rewind the last break instruction
+        this.breakRewind = 0;
+        // PRIMASK fields
+        this.PM = false;
+        // CONTROL fields
+        this.SPSEL = StackPointerBank.SPmain;
+        this.nPRIV = false;
+        this.currentMode = ExecutionMode.Mode_Thread;
+        this.IPSR = 0;
+        this.interruptNMIMask = 0;
+        this.pendingInterrupts = 0;
+        this.enabledInterrupts = 0;
+        this.interruptPriorities = [0xffffffff, 0x0, 0x0, 0x0];
+        this.pendingNMI = false;
+        this.pendingPendSV = false;
+        this.pendingSVCall = false;
+        this.pendingSystick = false;
+        this.interruptsUpdated = false;
+        this.VTOR = 0;
+        this.SHPR2 = 0;
+        this.SHPR3 = 0;
+        /** Hook to listen for function calls - branch-link (BL/BLX) instructions */
+        this.blTaken = (core, blx) => {
+            void core; // surpress unused variable warnings
+            void blx;
+        };
+        this.SP = 0xfffffffc;
+        this.bankedSP = 0xfffffffc;
+    }
+    get logger() {
+        return this.rp2040.logger;
+    }
+    reset() {
+        this.SP = this.rp2040.readUint32(this.VTOR);
+        this.PC = this.rp2040.readUint32(this.VTOR + 4) & 0xfffffffe;
+        this.cycles = 0;
+    }
+    get SP() {
+        return this.registers[13];
+    }
+    set SP(value) {
+        this.registers[13] = value & ~0x3;
+    }
+    get LR() {
+        return this.registers[14];
+    }
+    set LR(value) {
+        this.registers[14] = value;
+    }
+    get PC() {
+        return this.registers[15];
+    }
+    set PC(value) {
+        this.registers[15] = value;
+    }
+    get APSR() {
+        return ((this.N ? 0x80000000 : 0) |
+            (this.Z ? 0x40000000 : 0) |
+            (this.C ? 0x20000000 : 0) |
+            (this.V ? 0x10000000 : 0));
+    }
+    set APSR(value) {
+        this.N = !!(value & 0x80000000);
+        this.Z = !!(value & 0x40000000);
+        this.C = !!(value & 0x20000000);
+        this.V = !!(value & 0x10000000);
+    }
+    get xPSR() {
+        return this.APSR | this.IPSR | (1 << 24);
+    }
+    set xPSR(value) {
+        this.APSR = value;
+        this.IPSR = value & 0x3f;
+    }
+    checkCondition(cond) {
+        // Evaluate base condition.
+        let result = false;
+        switch (cond >> 1) {
+            case 0b000:
+                result = this.Z;
+                break;
+            case 0b001:
+                result = this.C;
+                break;
+            case 0b010:
+                result = this.N;
+                break;
+            case 0b011:
+                result = this.V;
+                break;
+            case 0b100:
+                result = this.C && !this.Z;
+                break;
+            case 0b101:
+                result = this.N === this.V;
+                break;
+            case 0b110:
+                result = this.N === this.V && !this.Z;
+                break;
+            case 0b111:
+                result = true;
+                break;
+        }
+        return cond & 0b1 && cond != 0b1111 ? !result : result;
+    }
+    readUint32(address) {
+        return this.rp2040.readUint32(address);
+    }
+    readUint16(address) {
+        return this.rp2040.readUint16(address);
+    }
+    readUint8(address) {
+        return this.rp2040.readUint8(address);
+    }
+    writeUint32(address, value) {
+        this.rp2040.writeUint32(address, value);
+    }
+    writeUint16(address, value) {
+        this.rp2040.writeUint16(address, value);
+    }
+    writeUint8(address, value) {
+        this.rp2040.writeUint8(address, value);
+    }
+    switchStack(stack) {
+        if (this.SPSEL !== stack) {
+            const temp = this.SP;
+            this.SP = this.bankedSP;
+            this.bankedSP = temp;
+            this.SPSEL = stack;
+        }
+    }
+    get SPprocess() {
+        return this.SPSEL === StackPointerBank.SPprocess ? this.SP : this.bankedSP;
+    }
+    set SPprocess(value) {
+        if (this.SPSEL === StackPointerBank.SPprocess) {
+            this.SP = value;
+        }
+        else {
+            this.bankedSP = value >>> 0;
+        }
+    }
+    get SPmain() {
+        return this.SPSEL === StackPointerBank.SPmain ? this.SP : this.bankedSP;
+    }
+    set SPmain(value) {
+        if (this.SPSEL === StackPointerBank.SPmain) {
+            this.SP = value;
+        }
+        else {
+            this.bankedSP = value >>> 0;
+        }
+    }
+    exceptionEntry(exceptionNumber) {
+        // PushStack:
+        let framePtr = 0;
+        let framePtrAlign = 0;
+        if (this.SPSEL && this.currentMode === ExecutionMode.Mode_Thread) {
+            framePtrAlign = this.SPprocess & 0b100 ? 1 : 0;
+            this.SPprocess = (this.SPprocess - 0x20) & ~0b100;
+            framePtr = this.SPprocess;
+        }
+        else {
+            framePtrAlign = this.SPmain & 0b100 ? 1 : 0;
+            this.SPmain = (this.SPmain - 0x20) & ~0b100;
+            framePtr = this.SPmain;
+        }
+        /* only the stack locations, not the store order, are architected */
+        this.writeUint32(framePtr, this.registers[0]);
+        this.writeUint32(framePtr + 0x4, this.registers[1]);
+        this.writeUint32(framePtr + 0x8, this.registers[2]);
+        this.writeUint32(framePtr + 0xc, this.registers[3]);
+        this.writeUint32(framePtr + 0x10, this.registers[12]);
+        this.writeUint32(framePtr + 0x14, this.LR);
+        this.writeUint32(framePtr + 0x18, this.PC & ~1); // ReturnAddress(ExceptionType);
+        this.writeUint32(framePtr + 0x1c, (this.xPSR & ~(1 << 9)) | (framePtrAlign << 9));
+        if (this.currentMode == ExecutionMode.Mode_Handler) {
+            this.LR = 0xfffffff1;
+        }
+        else {
+            if (!this.SPSEL) {
+                this.LR = 0xfffffff9;
+            }
+            else {
+                this.LR = 0xfffffffd;
+            }
+        }
+        // ExceptionTaken:
+        this.currentMode = ExecutionMode.Mode_Handler; // Enter Handler Mode, now Privileged
+        this.IPSR = exceptionNumber;
+        this.switchStack(StackPointerBank.SPmain);
+        this.eventRegistered = true;
+        const vectorTable = this.VTOR;
+        this.PC = this.readUint32(vectorTable + 4 * exceptionNumber);
+    }
+    exceptionReturn(excReturn) {
+        let framePtr = this.SPmain;
+        switch (excReturn & 0xf) {
+            case 0b0001: // Return to Handler
+                this.currentMode = ExecutionMode.Mode_Handler;
+                this.switchStack(StackPointerBank.SPmain);
+                break;
+            case 0b1001: // Return to Thread using Main stack
+                this.currentMode = ExecutionMode.Mode_Thread;
+                this.switchStack(StackPointerBank.SPmain);
+                break;
+            case 0b1101: // Return to Thread using Process stack
+                framePtr = this.SPprocess;
+                this.currentMode = ExecutionMode.Mode_Thread;
+                this.switchStack(StackPointerBank.SPprocess);
+                break;
+            // Assigning CurrentMode to Mode_Thread causes a drop in privilege
+            // if CONTROL.nPRIV is set to 1
+        }
+        // PopStack:
+        this.registers[0] = this.readUint32(framePtr); // Stack accesses are performed as Unprivileged accesses if
+        this.registers[1] = this.readUint32(framePtr + 0x4); // CONTROL<0>=='1' && EXC_RETURN<3>=='1' Privileged otherwise
+        this.registers[2] = this.readUint32(framePtr + 0x8);
+        this.registers[3] = this.readUint32(framePtr + 0xc);
+        this.registers[12] = this.readUint32(framePtr + 0x10);
+        this.LR = this.readUint32(framePtr + 0x14);
+        this.PC = this.readUint32(framePtr + 0x18);
+        const psr = this.readUint32(framePtr + 0x1c);
+        const framePtrAlign = psr & (1 << 9) ? 0b100 : 0;
+        switch (excReturn & 0xf) {
+            case 0b0001: // Returning to Handler mode
+                this.SPmain = (this.SPmain + 0x20) | framePtrAlign;
+                break;
+            case 0b1001: // Returning to Thread mode using Main stack
+                this.SPmain = (this.SPmain + 0x20) | framePtrAlign;
+                break;
+            case 0b1101: // Returning to Thread mode using Process stack
+                this.SPprocess = (this.SPprocess + 0x20) | framePtrAlign;
+                break;
+        }
+        this.APSR = psr & 0xf0000000;
+        const forceThread = this.currentMode == ExecutionMode.Mode_Thread && this.nPRIV;
+        this.IPSR = forceThread ? 0 : psr & 0x3f;
+        this.interruptsUpdated = true;
+        // Thumb bit should always be one! EPSR<24> = psr<24>; // Load valid EPSR bits from memory
+        this.eventRegistered = true;
+        // if CurrentMode == Mode_Thread && SCR.SLEEPONEXIT == '1' then
+        // SleepOnExit(); // IMPLEMENTATION DEFINED
+    }
+    get pendSVPriority() {
+        return (this.SHPR3 >> 22) & 0x3;
+    }
+    get svCallPriority() {
+        return this.SHPR2 >>> 30;
+    }
+    get systickPriority() {
+        return this.SHPR3 >>> 30;
+    }
+    exceptionPriority(n) {
+        switch (n) {
+            case EXC_RESET:
+                return -3;
+            case EXC_NMI:
+                return -2;
+            case EXC_HARDFAULT:
+                return -1;
+            case EXC_SVCALL:
+                return this.svCallPriority;
+            case EXC_PENDSV:
+                return this.pendSVPriority;
+            case EXC_SYSTICK:
+                return this.systickPriority;
+            default: {
+                if (n < 16) {
+                    return LOWEST_PRIORITY;
+                }
+                const intNum = n - 16;
+                for (let priority = 0; priority < 4; priority++) {
+                    if (this.interruptPriorities[priority] & (1 << intNum)) {
+                        return priority;
+                    }
+                }
+                return LOWEST_PRIORITY;
+            }
+        }
+    }
+    get vectPending() {
+        if (this.pendingNMI) {
+            return EXC_NMI;
+        }
+        const { svCallPriority, systickPriority, pendSVPriority, pendingInterrupts } = this;
+        for (let priority = 0; priority < LOWEST_PRIORITY; priority++) {
+            const levelInterrupts = pendingInterrupts & this.interruptPriorities[priority];
+            if (this.pendingSVCall && priority === svCallPriority) {
+                return EXC_SVCALL;
+            }
+            if (this.pendingPendSV && priority === pendSVPriority) {
+                return EXC_PENDSV;
+            }
+            if (this.pendingSystick && priority === systickPriority) {
+                return EXC_SYSTICK;
+            }
+            if (levelInterrupts) {
+                for (let interruptNumber = 0; interruptNumber < 32; interruptNumber++) {
+                    if (levelInterrupts & (1 << interruptNumber)) {
+                        return 16 + interruptNumber;
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+    setInterrupt(irq, value) {
+        const irqBit = 1 << irq;
+        if (value && !(this.pendingInterrupts & irqBit)) {
+            this.pendingInterrupts |= irqBit;
+            this.interruptsUpdated = true;
+            if (this.waiting && this.checkForInterrupts()) {
+                this.waiting = false;
+            }
+        }
+        else if (!value) {
+            this.pendingInterrupts &= ~irqBit;
+        }
+    }
+    checkForInterrupts() {
+        /* If we're waiting for an interrupt (i.e. WFI/WFE), the ARM says:
+           > If PRIMASK.PM is set to 1, an asynchronous exception that has a higher group priority than any
+           > active exception results in a WFI instruction exit. If the group priority of the exception is less than or
+           > equal to the execution group priority, the exception is ignored.
+        */
+        const currentPriority = this.waiting
+            ? this.PM
+                ? this.exceptionPriority(this.IPSR)
+                : LOWEST_PRIORITY
+            : Math.min(this.exceptionPriority(this.IPSR), this.PM ? 0 : LOWEST_PRIORITY);
+        const interruptSet = this.pendingInterrupts & this.enabledInterrupts;
+        const { svCallPriority, systickPriority, pendSVPriority } = this;
+        if (this.pendingNMI) {
+            this.pendingNMI = false;
+            this.exceptionEntry(EXC_NMI);
+            return true;
+        }
+        for (let priority = 0; priority < currentPriority; priority++) {
+            const levelInterrupts = interruptSet & this.interruptPriorities[priority];
+            if (this.pendingSVCall && priority === svCallPriority) {
+                this.pendingSVCall = false;
+                this.exceptionEntry(EXC_SVCALL);
+                return true;
+            }
+            if (this.pendingPendSV && priority === pendSVPriority) {
+                this.pendingPendSV = false;
+                this.exceptionEntry(EXC_PENDSV);
+                return true;
+            }
+            if (this.pendingSystick && priority === systickPriority) {
+                this.pendingSystick = false;
+                this.exceptionEntry(EXC_SYSTICK);
+                return true;
+            }
+            if (levelInterrupts) {
+                for (let interruptNumber = 0; interruptNumber < 32; interruptNumber++) {
+                    if (levelInterrupts & (1 << interruptNumber)) {
+                        if (interruptNumber > MAX_HARDWARE_IRQ) {
+                            this.pendingInterrupts &= ~(1 << interruptNumber);
+                        }
+                        this.exceptionEntry(16 + interruptNumber);
+                        return true;
+                    }
+                }
+            }
+        }
+        this.interruptsUpdated = false;
+        return false;
+    }
+    readSpecialRegister(sysm) {
+        switch (sysm) {
+            case SYSM_APSR:
+                return this.APSR;
+            case SYSM_XPSR:
+                return this.xPSR;
+            case SYSM_IPSR:
+                return this.IPSR;
+            case SYSM_PRIMASK:
+                return this.PM ? 1 : 0;
+            case SYSM_MSP:
+                return this.SPmain;
+            case SYSM_PSP:
+                return this.SPprocess;
+            case SYSM_CONTROL:
+                return (this.SPSEL === StackPointerBank.SPprocess ? 2 : 0) | (this.nPRIV ? 1 : 0);
+            default:
+                this.logger.warn(LOG_NAME, `MRS with unimplemented SYSm value: ${sysm}`);
+                return 0;
+        }
+    }
+    writeSpecialRegister(sysm, value) {
+        switch (sysm) {
+            case SYSM_APSR:
+                this.APSR = value;
+                break;
+            case SYSM_XPSR:
+                this.xPSR = value;
+                break;
+            case SYSM_IPSR:
+                this.IPSR = value;
+                break;
+            case SYSM_PRIMASK:
+                this.PM = !!(value & 1);
+                this.interruptsUpdated = true;
+                break;
+            case SYSM_MSP:
+                this.SPmain = value;
+                break;
+            case SYSM_PSP:
+                this.SPprocess = value;
+                break;
+            case SYSM_CONTROL:
+                this.nPRIV = !!(value & 1);
+                if (this.currentMode === ExecutionMode.Mode_Thread) {
+                    this.switchStack(value & 2 ? StackPointerBank.SPprocess : StackPointerBank.SPmain);
+                }
+                break;
+            default:
+                this.logger.warn(LOG_NAME, `MRS with unimplemented SYSm value: ${sysm}`);
+                return 0;
+        }
+    }
+    BXWritePC(address) {
+        if (this.currentMode == ExecutionMode.Mode_Handler && address >>> 28 == 0b1111) {
+            this.exceptionReturn(address & 0x0fffffff);
+        }
+        else {
+            this.PC = address & ~1;
+        }
+    }
+    substractUpdateFlags(minuend, subtrahend) {
+        const result = minuend - subtrahend;
+        this.N = !!(result & 0x80000000);
+        this.Z = (result & 0xffffffff) === 0;
+        this.C = minuend >= subtrahend;
+        this.V =
+            (!!(result & 0x80000000) && !(minuend & 0x80000000) && !!(subtrahend & 0x80000000)) ||
+                (!(result & 0x80000000) && !!(minuend & 0x80000000) && !(subtrahend & 0x80000000));
+        return result;
+    }
+    addUpdateFlags(addend1, addend2, carry = 0) {
+        // CSCE2303 patch 5: ARM AddWithCarry uses signed ORIGINAL operands.
+        const result = (addend1 >>> 0) + (addend2 >>> 0) + carry;
+        const unsignedSum = result >>> 0;
+        const signedSum = (addend1 | 0) + (addend2 | 0) + carry;
+        this.N = !!(result & 0x80000000);
+        this.Z = (result & 0xffffffff) === 0;
+        this.C = result === unsignedSum ? false : true;
+        this.V = (result | 0) === signedSum ? false : true;
+        return result & 0xffffffff;
+    }
+    cyclesIO(addr, write = false) {
+        addr = addr >>> 0;
+        if (addr >= SIO_START_ADDRESS && addr < SIO_START_ADDRESS + 0x10000000) {
+            return 0;
+        }
+        if (addr >= APB_START_ADDRESS && addr < APB_START_ADDRESS + 0x10000000) {
+            return write ? 4 : 3;
+        }
+        return 1;
+    }
+    executeInstruction() {
+        if (this.interruptsUpdated) {
+            if (this.checkForInterrupts()) {
+                this.waiting = false;
+            }
+        }
+        // ARM Thumb instruction encoding - 16 bits / 2 bytes
+        const opcodePC = this.PC & ~1; //ensure no LSB set PC are executed
+        const opcode = this.readUint16(opcodePC);
+        const wideInstruction = opcode >> 12 === 0b1111 || opcode >> 11 === 0b11101;
+        const opcode2 = wideInstruction ? this.readUint16(opcodePC + 2) : 0;
+        this.PC += 2;
+        let deltaCycles = 1;
+        // ADCS
+        if (opcode >> 6 === 0b0100000101) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            this.registers[Rdn] = this.addUpdateFlags(this.registers[Rdn], this.registers[Rm], this.C ? 1 : 0);
+        }
+        // ADD (register = SP plus immediate)
+        else if (opcode >> 11 === 0b10101) {
+            const imm8 = opcode & 0xff;
+            const Rd = (opcode >> 8) & 0x7;
+            this.registers[Rd] = this.SP + (imm8 << 2);
+        }
+        // ADD (SP plus immediate)
+        else if (opcode >> 7 === 0b101100000) {
+            const imm32 = (opcode & 0x7f) << 2;
+            this.SP += imm32;
+        }
+        // ADDS (Encoding T1)
+        else if (opcode >> 9 === 0b0001110) {
+            const imm3 = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.addUpdateFlags(this.registers[Rn], imm3);
+        }
+        // ADDS (Encoding T2)
+        else if (opcode >> 11 === 0b00110) {
+            const imm8 = opcode & 0xff;
+            const Rdn = (opcode >> 8) & 0x7;
+            this.registers[Rdn] = this.addUpdateFlags(this.registers[Rdn], imm8);
+        }
+        // ADDS (register)
+        else if (opcode >> 9 === 0b0001100) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.addUpdateFlags(this.registers[Rn], this.registers[Rm]);
+        }
+        // ADD (register)
+        else if (opcode >> 8 === 0b01000100) {
+            const Rm = (opcode >> 3) & 0xf;
+            const Rdn = ((opcode & 0x80) >> 4) | (opcode & 0x7);
+            const leftValue = Rdn === pcRegister ? this.PC + 2 : this.registers[Rdn];
+            const rightValue = Rm === pcRegister ? this.PC + 2 : this.registers[Rm];
+            const result = leftValue + rightValue;
+            if (Rdn !== spRegister && Rdn !== pcRegister) {
+                this.registers[Rdn] = result;
+            }
+            else if (Rdn === pcRegister) {
+                this.registers[Rdn] = result & ~0x1;
+                deltaCycles++;
+            }
+            else if (Rdn === spRegister) {
+                this.registers[Rdn] = result & ~0x3;
+            }
+        }
+        // ADR
+        else if (opcode >> 11 === 0b10100) {
+            const imm8 = opcode & 0xff;
+            const Rd = (opcode >> 8) & 0x7;
+            this.registers[Rd] = (opcodePC & 0xfffffffc) + 4 + (imm8 << 2);
+        }
+        // ANDS (Encoding T2)
+        else if (opcode >> 6 === 0b0100000000) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const result = this.registers[Rdn] & this.registers[Rm];
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = (result & 0xffffffff) === 0;
+        }
+        // ASRS (immediate)
+        else if (opcode >> 11 === 0b00010) {
+            const imm5 = (opcode >> 6) & 0x1f;
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            const input = this.registers[Rm];
+            const shiftN = imm5 ? imm5 : 32;
+            const result = shiftN < 32 ? input >> shiftN : (input & 0x80000000) >> 31;
+            this.registers[Rd] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = (result & 0xffffffff) === 0;
+            this.C = input & (1 << (shiftN - 1)) ? true : false;
+        }
+        // ASRS (register)
+        else if (opcode >> 6 === 0b0100000100) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const input = this.registers[Rdn];
+            const amount = this.registers[Rm] & 0xff; // CSCE2303 patch 3: read before Rdn (possibly Rm) is written
+            const shiftN = amount < 32 ? amount : 32;
+            const result = shiftN < 32 ? input >> shiftN : (input & 0x80000000) >> 31;
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = (result & 0xffffffff) === 0;
+            this.C = amount === 0 ? this.C : input & (1 << (shiftN - 1)) ? true : false; // CSCE2303 patch 3
+        }
+        // B (with cond)
+        else if (opcode >> 12 === 0b1101 && ((opcode >> 9) & 0x7) !== 0b111) {
+            let imm8 = (opcode & 0xff) << 1;
+            const cond = (opcode >> 8) & 0xf;
+            if (imm8 & (1 << 8)) {
+                imm8 = (imm8 & 0x1ff) - 0x200;
+            }
+            if (this.checkCondition(cond)) {
+                this.PC += imm8 + 2;
+                deltaCycles++;
+            }
+        }
+        // B
+        else if (opcode >> 11 === 0b11100) {
+            let imm11 = (opcode & 0x7ff) << 1;
+            if (imm11 & (1 << 11)) {
+                imm11 = (imm11 & 0x7ff) - 0x800;
+            }
+            this.PC += imm11 + 2;
+            deltaCycles++;
+        }
+        // BICS
+        else if (opcode >> 6 === 0b0100001110) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const result = (this.registers[Rdn] &= ~this.registers[Rm]);
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+        }
+        // BKPT
+        else if (opcode >> 8 === 0b10111110) {
+            const imm8 = opcode & 0xff;
+            this.breakRewind = 2;
+            this.rp2040.onBreak(imm8);
+        }
+        // BL
+        else if (opcode >> 11 === 0b11110 && opcode2 >> 14 === 0b11 && ((opcode2 >> 12) & 0x1) == 1) {
+            const imm11 = opcode2 & 0x7ff;
+            const J2 = (opcode2 >> 11) & 0x1;
+            const J1 = (opcode2 >> 13) & 0x1;
+            const imm10 = opcode & 0x3ff;
+            const S = (opcode >> 10) & 0x1;
+            const I1 = 1 - (S ^ J1);
+            const I2 = 1 - (S ^ J2);
+            const imm32 = ((S ? 0b11111111 : 0) << 24) | ((I1 << 23) | (I2 << 22) | (imm10 << 12) | (imm11 << 1));
+            this.LR = (this.PC + 2) | 0x1;
+            this.PC += 2 + imm32;
+            deltaCycles += 2;
+            this.blTaken(this, false);
+        }
+        // BLX
+        else if (opcode >> 7 === 0b010001111 && (opcode & 0x7) === 0) {
+            const Rm = (opcode >> 3) & 0xf;
+            const target = this.registers[Rm]; // CSCE2303 patch 6: Rm may be LR.
+            this.LR = this.PC | 0x1;
+            this.PC = target & ~1;
+            deltaCycles++;
+            this.blTaken(this, true);
+        }
+        // BX
+        else if (opcode >> 7 === 0b010001110 && (opcode & 0x7) === 0) {
+            const Rm = (opcode >> 3) & 0xf;
+            this.BXWritePC(this.registers[Rm]);
+            deltaCycles++;
+        }
+        // CMN (register)
+        else if (opcode >> 6 === 0b0100001011) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rn = opcode & 0x7;
+            this.addUpdateFlags(this.registers[Rn], this.registers[Rm]);
+        }
+        // CMP immediate
+        else if (opcode >> 11 === 0b00101) {
+            const Rn = (opcode >> 8) & 0x7;
+            const imm8 = opcode & 0xff;
+            this.substractUpdateFlags(this.registers[Rn], imm8);
+        }
+        // CMP (register)
+        else if (opcode >> 6 === 0b0100001010) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rn = opcode & 0x7;
+            this.substractUpdateFlags(this.registers[Rn], this.registers[Rm]);
+        }
+        // CMP (register) encoding T2
+        else if (opcode >> 8 === 0b01000101) {
+            const Rm = (opcode >> 3) & 0xf;
+            const Rn = ((opcode >> 4) & 0x8) | (opcode & 0x7);
+            this.substractUpdateFlags(this.registers[Rn], this.registers[Rm]);
+        }
+        // CPSID i
+        else if (opcode === 0xb672) {
+            this.PM = true;
+        }
+        // CPSIE i
+        else if (opcode === 0xb662) {
+            this.PM = false;
+            this.interruptsUpdated = true;
+        }
+        // DMB SY
+        else if (opcode === 0xf3bf && (opcode2 & 0xfff0) === 0x8f50) {
+            this.PC += 2;
+            deltaCycles += 2;
+        }
+        // DSB SY
+        else if (opcode === 0xf3bf && (opcode2 & 0xfff0) === 0x8f40) {
+            this.PC += 2;
+            deltaCycles += 2;
+        }
+        // EORS
+        else if (opcode >> 6 === 0b0100000001) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const result = this.registers[Rm] ^ this.registers[Rdn];
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+        }
+        // ISB SY
+        else if (opcode === 0xf3bf && (opcode2 & 0xfff0) === 0x8f60) {
+            this.PC += 2;
+            deltaCycles += 2;
+        }
+        // LDMIA
+        else if (opcode >> 11 === 0b11001) {
+            const Rn = (opcode >> 8) & 0x7;
+            const registers = opcode & 0xff;
+            let address = this.registers[Rn];
+            for (let i = 0; i < 8; i++) {
+                if (registers & (1 << i)) {
+                    this.registers[i] = this.readUint32(address);
+                    address += 4;
+                    deltaCycles++;
+                }
+            }
+            // Write back
+            if (!(registers & (1 << Rn))) {
+                this.registers[Rn] = address;
+            }
+        }
+        // LDR (immediate)
+        else if (opcode >> 11 === 0b01101) {
+            const imm5 = ((opcode >> 6) & 0x1f) << 2;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rn] + imm5;
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint32(addr);
+        }
+        // LDR (sp + immediate)
+        else if (opcode >> 11 === 0b10011) {
+            const Rt = (opcode >> 8) & 0x7;
+            const imm8 = opcode & 0xff;
+            const addr = this.SP + (imm8 << 2);
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint32(addr);
+        }
+        // LDR (literal)
+        else if (opcode >> 11 === 0b01001) {
+            const imm8 = (opcode & 0xff) << 2;
+            const Rt = (opcode >> 8) & 7;
+            const nextPC = this.PC + 2;
+            const addr = (nextPC & 0xfffffffc) + imm8;
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint32(addr);
+        }
+        // LDR (register)
+        else if (opcode >> 9 === 0b0101100) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint32(addr);
+        }
+        // LDRB (immediate)
+        else if (opcode >> 11 === 0b01111) {
+            const imm5 = (opcode >> 6) & 0x1f;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rn] + imm5;
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint8(addr);
+        }
+        // LDRB (register)
+        else if (opcode >> 9 === 0b0101110) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint8(addr);
+        }
+        // LDRH (immediate)
+        else if (opcode >> 11 === 0b10001) {
+            const imm5 = (opcode >> 6) & 0x1f;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rn] + (imm5 << 1);
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint16(addr);
+        }
+        // LDRH (register)
+        else if (opcode >> 9 === 0b0101101) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = this.readUint16(addr);
+        }
+        // LDRSB
+        else if (opcode >> 9 === 0b0101011) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = signExtend8(this.readUint8(addr));
+        }
+        // LDRSH
+        else if (opcode >> 9 === 0b0101111) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const addr = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(addr);
+            this.registers[Rt] = signExtend16(this.readUint16(addr));
+        }
+        // LSLS (immediate)
+        else if (opcode >> 11 === 0b00000) {
+            const imm5 = (opcode >> 6) & 0x1f;
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            const input = this.registers[Rm];
+            const result = input << imm5;
+            this.registers[Rd] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+            this.C = imm5 ? !!(input & (1 << (32 - imm5))) : this.C;
+        }
+        // LSLS (register)
+        else if (opcode >> 6 === 0b0100000010) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const input = this.registers[Rdn];
+            const shiftCount = this.registers[Rm] & 0xff;
+            const result = shiftCount >= 32 ? 0 : input << shiftCount;
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+            this.C = shiftCount === 0 ? this.C : shiftCount <= 32 ? !!(input & (1 << (32 - shiftCount))) : false; // CSCE2303 patch 1
+        }
+        // LSRS (immediate)
+        else if (opcode >> 11 === 0b00001) {
+            const imm5 = (opcode >> 6) & 0x1f;
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            const input = this.registers[Rm];
+            const result = imm5 ? input >>> imm5 : 0;
+            this.registers[Rd] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+            this.C = !!((input >>> (imm5 ? imm5 - 1 : 31)) & 0x1);
+        }
+        // LSRS (register)
+        else if (opcode >> 6 === 0b0100000011) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const shiftAmount = this.registers[Rm] & 0xff;
+            const input = this.registers[Rdn];
+            const result = shiftAmount < 32 ? input >>> shiftAmount : 0;
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+            this.C = shiftAmount === 0 ? this.C : shiftAmount <= 32 ? !!((input >>> (shiftAmount - 1)) & 0x1) : false; // CSCE2303 patch 2
+        }
+        // MOV
+        else if (opcode >> 8 === 0b01000110) {
+            const Rm = (opcode >> 3) & 0xf;
+            const Rd = ((opcode >> 4) & 0x8) | (opcode & 0x7);
+            let value = Rm === pcRegister ? this.PC + 2 : this.registers[Rm];
+            if (Rd === pcRegister) {
+                deltaCycles++;
+                value &= ~1;
+            }
+            else if (Rd === spRegister) {
+                value &= ~3;
+            }
+            this.registers[Rd] = value;
+        }
+        // MOVS
+        else if (opcode >> 11 === 0b00100) {
+            const value = opcode & 0xff;
+            const Rd = (opcode >> 8) & 7;
+            this.registers[Rd] = value;
+            this.N = !!(value & 0x80000000);
+            this.Z = value === 0;
+        }
+        // MRS
+        else if (opcode === 0b1111001111101111 && opcode2 >> 12 == 0b1000) {
+            const SYSm = opcode2 & 0xff;
+            const Rd = (opcode2 >> 8) & 0xf;
+            this.registers[Rd] = this.readSpecialRegister(SYSm);
+            this.PC += 2;
+            deltaCycles += 2;
+        }
+        // MSR
+        else if (opcode >> 4 === 0b111100111000 && opcode2 >> 8 == 0b10001000) {
+            const SYSm = opcode2 & 0xff;
+            const Rn = opcode & 0xf;
+            this.writeSpecialRegister(SYSm, this.registers[Rn]);
+            this.PC += 2;
+            deltaCycles += 2;
+        }
+        // MULS
+        else if (opcode >> 6 === 0b0100001101) {
+            const Rn = (opcode >> 3) & 0x7;
+            const Rdm = opcode & 0x7;
+            const result = Math.imul(this.registers[Rn], this.registers[Rdm]);
+            this.registers[Rdm] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = (result & 0xffffffff) === 0;
+        }
+        // MVNS
+        else if (opcode >> 6 === 0b0100001111) {
+            const Rm = (opcode >> 3) & 7;
+            const Rd = opcode & 7;
+            const result = ~this.registers[Rm];
+            this.registers[Rd] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+        }
+        // ORRS (Encoding T2)
+        else if (opcode >> 6 === 0b0100001100) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const result = this.registers[Rdn] | this.registers[Rm];
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = (result & 0xffffffff) === 0;
+        }
+        // POP
+        else if (opcode >> 9 === 0b1011110) {
+            const P = (opcode >> 8) & 1;
+            let address = this.SP;
+            for (let i = 0; i <= 7; i++) {
+                if (opcode & (1 << i)) {
+                    this.registers[i] = this.readUint32(address);
+                    address += 4;
+                    deltaCycles++;
+                }
+            }
+            if (P) {
+                this.SP = address + 4;
+                this.BXWritePC(this.readUint32(address));
+                deltaCycles += 2;
+            }
+            else {
+                this.SP = address;
+            }
+        }
+        // PUSH
+        else if (opcode >> 9 === 0b1011010) {
+            let bitCount = 0;
+            for (let i = 0; i <= 8; i++) {
+                if (opcode & (1 << i)) {
+                    bitCount++;
+                }
+            }
+            let address = this.SP - 4 * bitCount;
+            for (let i = 0; i <= 7; i++) {
+                if (opcode & (1 << i)) {
+                    this.writeUint32(address, this.registers[i]);
+                    deltaCycles++;
+                    address += 4;
+                }
+            }
+            if (opcode & (1 << 8)) {
+                this.writeUint32(address, this.registers[14]);
+            }
+            this.SP -= 4 * bitCount;
+        }
+        // REV
+        else if (opcode >> 6 === 0b1011101000) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            const input = this.registers[Rm];
+            this.registers[Rd] =
+                ((input & 0xff) << 24) |
+                    (((input >> 8) & 0xff) << 16) |
+                    (((input >> 16) & 0xff) << 8) |
+                    ((input >> 24) & 0xff);
+        }
+        // REV16
+        else if (opcode >> 6 === 0b1011101001) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            const input = this.registers[Rm];
+            this.registers[Rd] =
+                (((input >> 16) & 0xff) << 24) |
+                    (((input >> 24) & 0xff) << 16) |
+                    ((input & 0xff) << 8) |
+                    ((input >> 8) & 0xff);
+        }
+        // REVSH
+        else if (opcode >> 6 === 0b1011101011) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            const input = this.registers[Rm];
+            this.registers[Rd] = signExtend16(((input & 0xff) << 8) | ((input >> 8) & 0xff));
+        }
+        // ROR
+        else if (opcode >> 6 === 0b0100000111) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            const input = this.registers[Rdn];
+            const amount = this.registers[Rm] & 0xff; // CSCE2303 patch 4: read before Rdn (possibly Rm) is written
+            const shift = amount % 32;
+            const result = (input >>> shift) | (input << (32 - shift));
+            this.registers[Rdn] = result;
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+            this.C = amount === 0 ? this.C : !!(result & 0x80000000); // CSCE2303 patch 4
+        }
+        // NEGS / RSBS
+        else if (opcode >> 6 === 0b0100001001) {
+            const Rn = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.substractUpdateFlags(0, this.registers[Rn]);
+        }
+        // NOP
+        else if (opcode === 0b1011111100000000) {
+            // Do nothing!
+        }
+        // SBCS (Encoding T1)
+        else if (opcode >> 6 === 0b0100000110) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rdn = opcode & 0x7;
+            this.registers[Rdn] = this.addUpdateFlags(this.registers[Rdn], (~this.registers[Rm]) >>> 0, this.C ? 1 : 0);
+        }
+        // SEV
+        else if (opcode === 0b1011111101000000) {
+            this.logger.info(LOG_NAME, 'SEV');
+        }
+        // STMIA
+        else if (opcode >> 11 === 0b11000) {
+            const Rn = (opcode >> 8) & 0x7;
+            const registers = opcode & 0xff;
+            let address = this.registers[Rn];
+            for (let i = 0; i < 8; i++) {
+                if (registers & (1 << i)) {
+                    this.writeUint32(address, this.registers[i]);
+                    address += 4;
+                    deltaCycles++;
+                }
+            }
+            // Write back
+            if (!(registers & (1 << Rn))) {
+                this.registers[Rn] = address;
+            }
+        }
+        // STR (immediate)
+        else if (opcode >> 11 === 0b01100) {
+            const imm5 = ((opcode >> 6) & 0x1f) << 2;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const address = this.registers[Rn] + imm5;
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint32(address, this.registers[Rt]);
+        }
+        // STR (sp + immediate)
+        else if (opcode >> 11 === 0b10010) {
+            const Rt = (opcode >> 8) & 0x7;
+            const imm8 = opcode & 0xff;
+            const address = this.SP + (imm8 << 2);
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint32(address, this.registers[Rt]);
+        }
+        // STR (register)
+        else if (opcode >> 9 === 0b0101000) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const address = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint32(address, this.registers[Rt]);
+        }
+        // STRB (immediate)
+        else if (opcode >> 11 === 0b01110) {
+            const imm5 = (opcode >> 6) & 0x1f;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const address = this.registers[Rn] + imm5;
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint8(address, this.registers[Rt]);
+        }
+        // STRB (register)
+        else if (opcode >> 9 === 0b0101010) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const address = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint8(address, this.registers[Rt]);
+        }
+        // STRH (immediate)
+        else if (opcode >> 11 === 0b10000) {
+            const imm5 = ((opcode >> 6) & 0x1f) << 1;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const address = this.registers[Rn] + imm5;
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint16(address, this.registers[Rt]);
+        }
+        // STRH (register)
+        else if (opcode >> 9 === 0b0101001) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rt = opcode & 0x7;
+            const address = this.registers[Rm] + this.registers[Rn];
+            deltaCycles += this.cyclesIO(address, true);
+            this.writeUint16(address, this.registers[Rt]);
+        }
+        // SUB (SP minus immediate)
+        else if (opcode >> 7 === 0b101100001) {
+            const imm32 = (opcode & 0x7f) << 2;
+            this.SP -= imm32;
+        }
+        // SUBS (Encoding T1)
+        else if (opcode >> 9 === 0b0001111) {
+            const imm3 = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.substractUpdateFlags(this.registers[Rn], imm3);
+        }
+        // SUBS (Encoding T2)
+        else if (opcode >> 11 === 0b00111) {
+            const imm8 = opcode & 0xff;
+            const Rdn = (opcode >> 8) & 0x7;
+            this.registers[Rdn] = this.substractUpdateFlags(this.registers[Rdn], imm8);
+        }
+        // SUBS (register)
+        else if (opcode >> 9 === 0b0001101) {
+            const Rm = (opcode >> 6) & 0x7;
+            const Rn = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.substractUpdateFlags(this.registers[Rn], this.registers[Rm]);
+        }
+        // SVC
+        else if (opcode >> 8 === 0b11011111) {
+            this.pendingSVCall = true;
+            this.interruptsUpdated = true;
+        }
+        // SXTB
+        else if (opcode >> 6 === 0b1011001001) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = signExtend8(this.registers[Rm]);
+        }
+        // SXTH
+        else if (opcode >> 6 === 0b1011001000) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = signExtend16(this.registers[Rm]);
+        }
+        // TST
+        else if (opcode >> 6 == 0b0100001000) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rn = opcode & 0x7;
+            const result = this.registers[Rn] & this.registers[Rm];
+            this.N = !!(result & 0x80000000);
+            this.Z = result === 0;
+        }
+        // UDF
+        else if (opcode >> 8 == 0b11011110) {
+            const imm8 = opcode & 0xff;
+            this.breakRewind = 2;
+            this.rp2040.onBreak(imm8);
+        }
+        // UDF (Encoding T2)
+        else if (opcode >> 4 === 0b111101111111 && opcode2 >> 12 === 0b1010) {
+            const imm4 = opcode & 0xf;
+            const imm12 = opcode2 & 0xfff;
+            this.breakRewind = 4;
+            this.rp2040.onBreak((imm4 << 12) | imm12);
+            this.PC += 2;
+        }
+        // UXTB
+        else if (opcode >> 6 == 0b1011001011) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.registers[Rm] & 0xff;
+        }
+        // UXTH
+        else if (opcode >> 6 == 0b1011001010) {
+            const Rm = (opcode >> 3) & 0x7;
+            const Rd = opcode & 0x7;
+            this.registers[Rd] = this.registers[Rm] & 0xffff;
+        }
+        // WFE
+        else if (opcode === 0b1011111100100000) {
+            deltaCycles++;
+            if (this.eventRegistered) {
+                this.eventRegistered = false;
+            }
+            else {
+                this.waiting = true;
+            }
+        }
+        // WFI
+        else if (opcode === 0b1011111100110000) {
+            deltaCycles++;
+            this.waiting = true;
+        }
+        // YIELD
+        else if (opcode === 0b1011111100010000) {
+            // do nothing for now. Wait for event!
+            this.logger.info(LOG_NAME, 'Yield');
+        }
+        else {
+            this.logger.warn(LOG_NAME, `Warning: Instruction at ${opcodePC.toString(16)} is not implemented yet!`);
+            this.logger.warn(LOG_NAME, `Opcode: 0x${opcode.toString(16)} (0x${opcode2.toString(16)})`);
+        }
+        this.cycles += deltaCycles;
+        return deltaCycles;
+    }
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { CortexM0Core };
+
+</script>
+<script>
+/*
+ * refiss-core.js - CSCE 2303 reference instruction set simulator (Cortex-M0 subset).
+ *
+ * The instruction semantics come from CortexM0Core (rp2040js, MIT licence, see
+ * cortex-m0-core.js). This file adds everything the project handout specifies:
+ * the memory map, the 43-instruction subset, the fault rules, the SVC services,
+ * the trace format and the cycle model. It runs both in a browser (refiss page)
+ * and under Node (refiss.js command line).
+ */
+(function (root) {
+  'use strict';
+
+  // Under Node the engine is a module; in the page it is a global class declared by
+  // the preceding script (a class declaration is not a property of globalThis).
+  const Engine = (typeof module !== 'undefined' && module.exports)
+    ? require('./cortex-m0-core.js').CortexM0Core
+    : CortexM0Core; // eslint-disable-line no-undef
+
+  const VERSION = '1.1';
+  const ROM_BASE = 0x00000000, ROM_SIZE = 1 << 20;      // 1 MB, read and execute
+  const RAM_BASE = 0x20000000, RAM_SIZE = 256 << 10;    // 256 KB, read, write and execute
+  const EBADF = 0xFFFFFFF7;                             // -9 as an unsigned 32-bit value
+
+  class Fault { constructor(kind) { this.kind = kind; } }
+  class LoadError extends Error {}
+
+  const hex8 = (v) => (v >>> 0).toString(16).padStart(8, '0');
+  const hex4 = (v) => (v & 0xFFFF).toString(16).padStart(4, '0');
+  const popcount8 = (v) => { let n = 0; for (let i = 0; i < 8; i++) n += (v >> i) & 1; return n; };
+
+  // ---------------------------------------------------------------------------
+  // The subset: all ARMv6-M encodings of the 43 listed instructions, including BL.
+  // Anything else, including legal M0 instructions left out of the subset
+  // (BKPT, CPS, MRS, MSR, barriers, hints other than NOP, UDF, REV16,
+  // REVSH), is UNDEFINED.
+  // ---------------------------------------------------------------------------
+  const LEGAL16 = [
+    [0xF800, 0x0000], [0xF800, 0x0800], [0xF800, 0x1000],                  // LSLS/LSRS/ASRS #imm (LSLS #0 = MOVS Rd, Rm)
+    [0xFE00, 0x1800], [0xFE00, 0x1A00], [0xFE00, 0x1C00], [0xFE00, 0x1E00], // ADDS/SUBS reg, ADDS/SUBS #imm3
+    [0xF800, 0x2000], [0xF800, 0x2800], [0xF800, 0x3000], [0xF800, 0x3800], // MOVS/CMP/ADDS/SUBS #imm8
+    [0xFC00, 0x4000],                                                       // AND EOR LSL LSR ASR ADC SBC ROR TST RSB CMP CMN ORR MUL BIC MVN
+    [0xFF00, 0x4400], [0xFF00, 0x4500], [0xFF00, 0x4600],                   // ADD, CMP, MOV with high registers
+    [0xFF87, 0x4700], [0xFF87, 0x4780],                                     // BX, BLX (register)
+    [0xF800, 0x4800],                                                       // LDR (literal)
+    [0xF000, 0x5000],                                                       // STR STRH STRB LDRSB LDR LDRH LDRB LDRSH (register)
+    [0xE000, 0x6000],                                                       // STR LDR STRB LDRB (#imm5)
+    [0xF000, 0x8000], [0xF000, 0x9000],                                     // STRH/LDRH (#imm5), STR/LDR (sp + #imm8)
+    [0xF800, 0xA000],                                                       // ADR (ADD Rd, pc, #imm)
+    [0xF800, 0xA800], [0xFF80, 0xB000], [0xFF80, 0xB080],                   // ADD Rd, sp, #imm; ADD sp, #imm; SUB sp, #imm
+    [0xFFC0, 0xB200], [0xFFC0, 0xB240], [0xFFC0, 0xB280], [0xFFC0, 0xB2C0], // SXTH SXTB UXTH UXTB
+    [0xFE00, 0xB400], [0xFFC0, 0xBA00], [0xFE00, 0xBC00], [0xFFFF, 0xBF00], // PUSH, REV, POP, NOP
+    [0xF800, 0xC000], [0xF800, 0xC800],                                     // STM, LDM
+    [0xFF00, 0xDF00], [0xF800, 0xE000],                                     // SVC, B
+  ];
+  function legal16(hw) {
+    if ((hw & 0xF000) === 0xD000 && ((hw >> 8) & 0xF) < 0xE) return true;  // B<cond>
+    for (const [mask, match] of LEGAL16) if ((hw & mask) === match) return true;
+    return false;
+  }
+  const isWide = (hw) => (hw >>> 11) >= 0x1D;                               // 11101, 11110, 11111
+  const isBL = (hw, hw2) => (hw & 0xF800) === 0xF000 && (hw2 & 0xD000) === 0xD000;
+
+  // ---------------------------------------------------------------------------
+  function createMachine(opts = {}) {
+    const cpu = opts.cpu === 'm0plus' ? 'm0plus' : 'm0';
+    const branchPenalty = cpu === 'm0plus' ? 1 : 2;
+    const maxInstr = opts.maxInstr ?? 100000000;
+    const stdin = opts.stdin || new Uint8Array(0);
+    const traceRequested = !!opts.onTrace;
+    const onTrace = opts.onTrace || (() => {});
+    const onStdout = opts.onStdout || (() => {});
+    const onStderr = opts.onStderr || (() => {});
+    let randState = (opts.seed ?? 2463534242) >>> 0;
+
+    const rom = new Uint8Array(ROM_SIZE), ram = new Uint8Array(RAM_SIZE);
+    let stdinPos = 0, instret = 0, cycles = 0, tracing = traceRequested, done = null;
+
+    // Memory bus seen by the engine. Every access is checked against the memory
+    // map; data accesses are counted for the cycle model and writes are logged
+    // for the trace. The first one or two halfword reads of each instruction are
+    // its fetch and are not counted.
+    function locate(addr, size) {
+      addr >>>= 0;
+      if (addr >= ROM_BASE && addr + size <= ROM_BASE + ROM_SIZE) return [rom, addr - ROM_BASE];
+      if (addr >= RAM_BASE && addr + size <= RAM_BASE + RAM_SIZE) return [ram, addr - RAM_BASE];
+      return null;
+    }
+    function rd(addr, size) {
+      addr >>>= 0;
+      if (addr & (size - 1)) throw new Fault('UNALIGNED');
+      const where = locate(addr, size);
+      if (!where) throw new Fault('BUS');
+      const [mem, o] = where;
+      if (size === 1) return mem[o];
+      if (size === 2) return mem[o] | (mem[o + 1] << 8);
+      return (mem[o] | (mem[o + 1] << 8) | (mem[o + 2] << 16) | (mem[o + 3] << 24)) >>> 0;
+    }
+    function wr(addr, size, value) {
+      addr >>>= 0;
+      if (addr & (size - 1)) throw new Fault('UNALIGNED');
+      const where = locate(addr, size);
+      if (!where || where[0] !== ram) throw new Fault('BUS');            // only RAM is writable
+      const [mem, o] = where;
+      for (let i = 0; i < size; i++) mem[o + i] = (value >>> (8 * i)) & 0xFF;
+    }
+    const bus = {
+      logger: { debug() {}, info() {}, warn() {}, error() {} },
+      onBreak() { throw new Fault('UNDEFINED'); },
+      skipFetches: 0, accesses: 0, writes: [],
+      readUint8(a) { this.accesses++; return rd(a, 1); },
+      readUint16(a) { if (this.skipFetches > 0) { this.skipFetches--; return rd(a, 2); } this.accesses++; return rd(a, 2); },
+      readUint32(a) { this.accesses++; return rd(a, 4); },
+      writeUint8(a, v) { this.accesses++; wr(a, 1, v); this.writes.push([a >>> 0, 1, v & 0xFF]); },
+      writeUint16(a, v) { this.accesses++; wr(a, 2, v); this.writes.push([a >>> 0, 2, v & 0xFFFF]); },
+      writeUint32(a, v) { this.accesses++; wr(a, 4, v); this.writes.push([a >>> 0, 4, v >>> 0]); },
+    };
+
+    const core = new Engine(bus);
+    const R = core.registers;
+
+    // ---- loading -----------------------------------------------------------
+    function poke(addr, byte) {
+      const where = locate(addr, 1);
+      if (!where) throw new LoadError(`byte at 0x${hex8(addr)} is outside ROM and RAM`);
+      where[0][where[1]] = byte;
+    }
+    function loadDump(text) {
+      let count = 0;
+      for (const line of String(text).split(/\r?\n/)) {
+        const s = line.replace(/^\s+/, '');
+        if (!s.startsWith('0x')) continue;
+        const addrText = s.slice(2, 10);
+        if (!/^[0-9a-fA-F]{8}$/.test(addrText)) throw new LoadError(`bad address in line: ${line.trim()}`);
+        let addr = parseInt(addrText, 16);
+        const hex = s.slice(11, 46).replace(/\s+/g, '');
+        if (!/^([0-9a-fA-F]{2})*$/.test(hex)) throw new LoadError(`bad data in line: ${line.trim()}`);
+        for (let i = 0; i < hex.length; i += 2) { poke(addr, parseInt(hex.substr(i, 2), 16)); addr = (addr + 1) >>> 0; count++; }
+      }
+      if (count === 0) throw new LoadError('no data lines found; is this a readelf -x dump?');
+    }
+    function loadBinary(bytes) {
+      if (bytes.length > ROM_SIZE) throw new LoadError('binary is larger than ROM');
+      rom.set(bytes, 0);
+    }
+
+    // ---- reset ---------------------------------------------------------------
+    function reset() {
+      const sp = rd(0, 4), pc = rd(4, 4);
+      for (let i = 0; i < 13; i++) R[i] = 0;
+      core.N = core.Z = core.C = core.V = false;
+      if (!(pc & 1)) { finish(255, `FAULT INVSTATE at pc=0x${hex8(pc)}`); return; }
+      core.SP = sp;
+      core.LR = 0xFFFFFFFF;
+      core.PC = (pc & ~1) >>> 0;
+    }
+
+    // ---- results ---------------------------------------------------------------
+    function finish(status, message) {
+      if (message) onStderr(new TextEncoder().encode(message + '\n'));
+      done = { status, message: message || '', instret, cycles };
+      return done;
+    }
+    const fault = (kind, pc) => finish(255, `FAULT ${kind} at pc=0x${hex8(pc)}`);
+
+    // ---- SVC services ------------------------------------------------------------
+    const out = (fd, bytes) => (fd === 2 ? onStderr : onStdout)(Uint8Array.from(bytes));
+    const outStr = (fd, s) => out(fd, new TextEncoder().encode(s));
+    function readableRange(addr, n) { for (let i = 0; i < n; i++) rd((addr + i) >>> 0, 1); }
+    function writableRange(addr, n) {
+      for (let i = 0; i < n; i++) { const w = locate((addr + i) >>> 0, 1); if (!w || w[0] !== ram) throw new Fault('BUS'); }
+    }
+    function readInt() {
+      const isSpace = (b) => b === 32 || (b >= 9 && b <= 13);
+      while (stdinPos < stdin.length && isSpace(stdin[stdinPos])) stdinPos++;
+      const start = stdinPos;
+      let neg = false;
+      if (stdinPos < stdin.length && (stdin[stdinPos] === 45 || stdin[stdinPos] === 43)) { neg = stdin[stdinPos] === 45; stdinPos++; }
+      let v = 0, digits = 0;
+      while (stdinPos < stdin.length && stdin[stdinPos] >= 48 && stdin[stdinPos] <= 57) {
+        v = (v * 10 + (stdin[stdinPos] - 48)) % 4294967296; stdinPos++; digits++;
+      }
+      if (digits === 0) { stdinPos = start; return 0; }
+      return neg ? (4294967296 - v) % 4294967296 : v;
+    }
+    function dumpRegs(pc) {
+      const names = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr'];
+      const regs = names.map((n, i) => `${n}=${hex8(R[i])}`).join(' ');
+      outStr(2, `${regs} pc=${hex8(pc)} NZCV=${flags()}\n`);
+    }
+    function dumpMem(addr, n) {
+      readableRange(addr, n);
+      let text = '';
+      for (let i = 0; i < n; i += 16) {
+        const row = [];
+        for (let j = i; j < Math.min(n, i + 16); j++) row.push(rd((addr + j) >>> 0, 1).toString(16).padStart(2, '0'));
+        text += `${hex8(addr + i)}: ${row.join(' ')}\n`;
+      }
+      outStr(2, text);
+    }
+    function service(n, pc) {
+      switch (n) {
+        case 0x00: return { exit: R[0] & 0xFF };                                   // EXIT
+        case 0x10: out(1, [R[0] & 0xFF]); break;                                   // PUTCHAR
+        case 0x11: {                                                               // PUTS
+          const bytes = []; let a = R[0] >>> 0, b;
+          while ((b = rd(a, 1)) !== 0) { bytes.push(b); a = (a + 1) >>> 0; }
+          out(1, bytes); break;
+        }
+        case 0x12: outStr(1, String(R[0] | 0)); break;                             // PUTINT
+        case 0x13: outStr(1, '0x' + hex8(R[0]).toUpperCase()); break;              // PUTHEX
+        case 0x14: R[0] = stdinPos < stdin.length ? stdin[stdinPos++] : 0xFFFFFFFF; break; // GETCHAR
+        case 0x15: R[0] = readInt(); break;                                        // GETINT
+        case 0x22: {                                                               // READ
+          const fd = R[0], buf = R[1] >>> 0, count = R[2] >>> 0;
+          if (fd !== 0) { R[0] = EBADF; break; }
+          const k = Math.min(count, stdin.length - stdinPos);
+          writableRange(buf, k);
+          for (let i = 0; i < k; i++) wr((buf + i) >>> 0, 1, stdin[stdinPos++]);
+          R[0] = k; break;
+        }
+        case 0x23: {                                                               // WRITE
+          const fd = R[0], buf = R[1] >>> 0, count = R[2] >>> 0;
+          if (fd !== 1 && fd !== 2) { R[0] = EBADF; break; }
+          readableRange(buf, count);
+          const bytes = new Uint8Array(count);
+          for (let i = 0; i < count; i++) bytes[i] = rd((buf + i) >>> 0, 1);
+          out(fd, bytes); R[0] = count; break;
+        }
+        case 0x30: R[0] = instret % 4294967296; R[1] = Math.floor(instret / 4294967296); break; // INSTRET
+        case 0x31: R[0] = cycles % 4294967296; R[1] = Math.floor(cycles / 4294967296); break;   // CYCLES
+        case 0x32: {                                                               // RAND (xorshift32)
+          let x = randState;
+          x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0;
+          randState = x; R[0] = x; break;
+        }
+        case 0x40: dumpRegs(pc); break;                                            // DUMP_REGS
+        case 0x41: dumpMem(R[0] >>> 0, R[1] >>> 0); break;                         // DUMP_MEM
+        case 0x42: tracing = traceRequested; break;                                // TRACE_ON
+        case 0x43: tracing = false; break;                                         // TRACE_OFF
+        default: throw new Fault('UNDEFINED');
+      }
+      return null;
+    }
+
+    // ---- trace -------------------------------------------------------------------
+    const NAMES = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10', 'r11', 'r12', 'sp', 'lr'];
+    const flags = () => `${+core.N}${+core.Z}${+core.C}${+core.V}`;
+    function traceLine(pc, hw, hw2, before) {
+      const parts = [hex8(pc), hw2 >= 0 ? hex4(hw) + hex4(hw2) : hex4(hw)];
+      for (let i = 0; i < 15; i++) if ((R[i] >>> 0) !== before[i]) parts.push(`${NAMES[i]}=${hex8(R[i])}`);
+      const writes = bus.writes.slice().sort((a, b) => a[0] - b[0]);
+      for (const [a, size, v] of writes) parts.push(`[${hex8(a)}]=${v.toString(16).padStart(size * 2, '0')}`);
+      parts.push(`NZCV=${flags()}`);
+      onTrace(parts.join(' '));
+    }
+
+    // ---- one instruction -----------------------------------------------------------
+    function step() {
+      const pc = core.PC >>> 0;
+      if (instret >= maxInstr) return finish(254, `LIMIT at pc=0x${hex8(pc)}`);
+      let hw, hw2 = -1;
+      try {
+        hw = rd(pc, 2);
+        if (isWide(hw)) { hw2 = rd(pc + 2, 2); if (!isBL(hw, hw2)) return fault('UNDEFINED', pc); }
+        else if (!legal16(hw)) return fault('UNDEFINED', pc);
+      } catch (f) { if (f instanceof Fault) return fault(f.kind, pc); throw f; }
+
+      // TRACE_ON needs a before snapshot even when recording is currently off.
+      const before = (tracing || (traceRequested && hw === 0xDF42))
+        ? Array.from(R.subarray(0, 15), (v) => v >>> 0) : null;
+      bus.accesses = 0; bus.writes.length = 0;
+
+      if ((hw & 0xFF00) === 0xDF00) {                    // SVC: performed here, not by the engine
+        instret++; cycles += 1;
+        let result;
+        try { result = service(hw & 0xFF, pc); } catch (f) { if (f instanceof Fault) { instret--; cycles--; return fault(f.kind, pc); } throw f; }
+        bus.writes.length = 0;                           // service memory writes are not instruction stores
+        core.PC = (pc + 2) >>> 0;
+        if (tracing && before) traceLine(pc, hw, hw2, before);
+        if (result && 'exit' in result) return finish(result.exit, '');
+        return null;
+      }
+
+      // A taken branch refills the pipeline even if its target is sequential.
+      // Evaluate conditional branches before execution, using the current flags.
+      const conditionalBranch = (hw & 0xF000) === 0xD000;
+      const pcWrite = ((hw & 0xFF00) === 0x4400 || (hw & 0xFF00) === 0x4600)
+        && (((hw & 0x80) >> 4) | (hw & 7)) === 15;
+      const branchTaken = hw2 >= 0 || (hw & 0xF800) === 0xE000
+        || (hw & 0xFF00) === 0x4700 || (hw & 0xFF00) === 0xBD00
+        || pcWrite || (conditionalBranch && core.checkCondition((hw >> 8) & 15));
+      try {
+        // INVSTATE: an interworking branch to an address with bit 0 clear.
+        if ((hw & 0xFF00) === 0x4700) {                  // BX / BLX (register)
+          const m = (hw >> 3) & 0xF;
+          const target = m === 15 ? (pc + 4) >>> 0 : R[m];
+          if (!(target & 1)) return fault('INVSTATE', pc);
+        } else if ((hw & 0xFF00) === 0xBD00) {           // POP {..., pc}
+          const target = rd((core.SP + 4 * popcount8(hw & 0xFF)) >>> 0, 4);
+          if (!(target & 1)) return fault('INVSTATE', pc);
+        }
+        bus.skipFetches = hw2 >= 0 ? 2 : 1;
+        core.executeInstruction();
+      } catch (f) { if (f instanceof Fault) return fault(f.kind, pc); throw f; }
+
+      instret++;
+      cycles += 1 + bus.accesses + (branchTaken ? branchPenalty : 0) + (hw2 >= 0 ? 1 : 0);
+      if (tracing) traceLine(pc, hw, hw2, before);
+      return null;
+    }
+
+    // Run up to `budget` instructions. Returns the result when the program has
+    // finished, or null if it is still running (so a page can yield to the browser).
+    function run(budget = Infinity) {
+      if (done) return done;
+      for (let i = 0; i < budget; i++) { const r = step(); if (r) return r; }
+      return null;
+    }
+
+    return {
+      loadDump, loadBinary, reset, run,
+      get done() { return done; }, get instret() { return instret; }, get cycles() { return cycles; },
+      get _engineCycles() { return core.cycles; },   // rp2040js's own M0+ count, for validation only
+    };
+  }
+
+  const api = { VERSION, createMachine, LoadError };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.Refiss = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const MAX_SHOWN = 5000, MAX_KEPT = 1000000, SLICE = 200000;
+  let traceLines = [], traceTruncated = false, running = false, stopRequested = false, binary = null;
+
+  $('openBtn').onclick = () => $('file').click();
+  $('file').onchange = async () => {
+    const f = $('file').files[0]; if (!f) return;
+    if (f.name.endsWith('.bin')) { binary = new Uint8Array(await f.arrayBuffer()); $('program').value = ''; $('fileNote').textContent = `${f.name}: raw binary, ${binary.length} bytes`; }
+    else { binary = null; $('program').value = await f.text(); $('fileNote').textContent = f.name; }
+    $('file').value = '';
+  };
+  $('program').oninput = () => { binary = null; $('fileNote').textContent = ''; };
+
+  function decoder() { const d = new TextDecoder('utf-8'); let s = ''; return { push(b) { s += d.decode(b, { stream: true }); }, get text() { return s; } }; }
+
+  $('runBtn').onclick = () => {
+    if (running) return;
+    const out = decoder(), err = decoder();
+    traceLines = []; traceTruncated = false; stopRequested = false;
+    const wantTrace = $('wantTrace').checked;
+    $('stdout').textContent = ''; $('stderr').textContent = ''; $('trace').textContent = ''; $('traceNote').textContent = '';
+    $('compareResult').textContent = ''; $('downloadBtn').disabled = true;
+    const machine = Refiss.createMachine({
+      cpu: $('cpu').value, seed: Number($('seed').value) >>> 0, maxInstr: Math.max(1, Number($('maxInstr').value) || 1),
+      stdin: new TextEncoder().encode($('stdin').value),
+      onStdout: (b) => out.push(b), onStderr: (b) => err.push(b),
+      onTrace: wantTrace ? (line) => { if (traceLines.length < MAX_KEPT) traceLines.push(line); else traceTruncated = true; } : null,
+    });
+    try { if (binary) machine.loadBinary(binary); else machine.loadDump($('program').value); }
+    catch (e) { setStatus(`load error: ${e.message} (exit status 253)`, false); return; }
+    machine.reset();
+    running = true; $('runBtn').disabled = true; $('stopBtn').disabled = false;
+    const t0 = performance.now();
+    const tick = () => {
+      let result = null;
+      try { result = machine.run(SLICE); } catch (e) { setStatus('internal error: ' + e.message, false); return finish(); }
+      $('stdout').textContent = out.text; $('stderr').textContent = err.text;
+      if (result) {
+        const secs = ((performance.now() - t0) / 1000).toFixed(2);
+        setStatus(`exit status ${result.status} · ${result.instret.toLocaleString()} instructions · ${result.cycles.toLocaleString()} cycles (${$('cpu').value}) · ${secs} s`, result.status < 253);
+        return finish();
+      }
+      if (stopRequested) { setStatus(`stopped by you after ${machine.instret.toLocaleString()} instructions`, false); return finish(); }
+      setStatus(`running… ${machine.instret.toLocaleString()} instructions`, true);
+      setTimeout(tick, 0);
+    };
+    setStatus('running…', true);
+    setTimeout(tick, 0);
+  };
+  $('stopBtn').onclick = () => { stopRequested = true; };
+
+  function finish() {
+    running = false; $('runBtn').disabled = false; $('stopBtn').disabled = true;
+    if (!$('wantTrace').checked) { $('traceNote').textContent = 'Trace recording was off for this run.'; return; }
+    $('trace').textContent = traceLines.slice(0, MAX_SHOWN).join('\n');
+    let note = `${traceLines.length.toLocaleString()} lines`;
+    if (traceLines.length > MAX_SHOWN) note += `; the first ${MAX_SHOWN.toLocaleString()} are shown, Download trace has them all`;
+    if (traceTruncated) note += `; recording stopped at ${MAX_KEPT.toLocaleString()} lines`;
+    $('traceNote').textContent = note + '.';
+    $('downloadBtn').disabled = traceLines.length === 0;
+  }
+  function setStatus(text, ok) { $('status').textContent = text; $('status').className = ok ? 'ok' : 'bad'; }
+
+  $('downloadBtn').onclick = () => {
+    const blob = new Blob([traceLines.join('\n') + '\n'], { type: 'text/plain' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'refiss.trace'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  const clean = (line) => line.split(';')[0].trim().replace(/\s+/g, ' ');
+  $('compareBtn').onclick = () => {
+    const res = $('compareResult');
+    if (!traceLines.length) { res.textContent = 'Run a program with "record trace" on first.'; res.className = 'bad'; return; }
+    const mine = $('mine').value.split(/\r?\n/).map(clean).filter((l) => l.length);
+    const ref = traceLines.map(clean);
+    const n = Math.min(mine.length, ref.length);
+    for (let i = 0; i < n; i++) {
+      if (mine[i] !== ref[i]) { res.innerHTML = ''; res.className = 'bad'; res.append(`First difference at line ${i + 1}. refiss: `, code(ref[i]), '  yours: ', code(mine[i])); return; }
+    }
+    if (mine.length !== ref.length) { res.className = 'bad'; res.textContent = `The first ${n.toLocaleString()} lines match, but refiss has ${ref.length.toLocaleString()} lines and yours has ${mine.length.toLocaleString()}.`; return; }
+    res.className = 'ok'; res.textContent = `The traces match (${n.toLocaleString()} lines).`;
+  };
+  function code(t) { const c = document.createElement('code'); c.textContent = t; return c; }
+})();
+</script>
+</body>
+</html>

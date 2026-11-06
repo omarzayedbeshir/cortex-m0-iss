@@ -1,0 +1,8 @@
+
+Hex dump of section '.vectors':
+  0x00000000 00000420 01010000                   ... ....
+
+
+Hex dump of section '.text':
+  0x00000100 01480047 002000df 00020000          .H.G. ......
+

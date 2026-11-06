@@ -1,0 +1,28 @@
+
+student/public-tests/cp1/fact/prog.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000100 <_start>:
+ 100:	4809      	ldr	r0, [pc, #36]	@ (128 <fact+0x18>)
+ 102:	df11      	svc	17
+ 104:	200a      	movs	r0, #10
+ 106:	f000 f803 	bl	110 <fact>
+ 10a:	df12      	svc	18
+ 10c:	2000      	movs	r0, #0
+ 10e:	df00      	svc	0
+
+00000110 <fact>:
+ 110:	b510      	push	{r4, lr}
+ 112:	0004      	movs	r4, r0
+ 114:	2801      	cmp	r0, #1
+ 116:	dd04      	ble.n	122 <fact+0x12>
+ 118:	3801      	subs	r0, #1
+ 11a:	f7ff fff9 	bl	110 <fact>
+ 11e:	4360      	muls	r0, r4
+ 120:	bd10      	pop	{r4, pc}
+ 122:	2001      	movs	r0, #1
+ 124:	bd10      	pop	{r4, pc}
+ 126:	0000      	.short	0x0000
+ 128:	0000012c 	.word	0x0000012c

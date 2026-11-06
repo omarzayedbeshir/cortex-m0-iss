@@ -1,0 +1,102 @@
+
+student/public-tests/cp1/allinsn/prog.elf:     file format elf32-littlearm
+
+
+Disassembly of section .text:
+
+00000100 <_start>:
+ 100:	2005      	movs	r0, #5
+ 102:	4688      	mov	r8, r1
+ 104:	4648      	mov	r0, r9
+ 106:	0011      	movs	r1, r2
+ 108:	43c8      	mvns	r0, r1
+ 10a:	1888      	adds	r0, r1, r2
+ 10c:	1cc8      	adds	r0, r1, #3
+ 10e:	32c8      	adds	r2, #200	@ 0xc8
+ 110:	4480      	add	r8, r0
+ 112:	4440      	add	r0, r8
+ 114:	a904      	add	r1, sp, #16
+ 116:	b010      	add	sp, #64	@ 0x40
+ 118:	b090      	sub	sp, #64	@ 0x40
+ 11a:	446a      	add	r2, sp
+ 11c:	a025      	add	r0, pc, #148	@ (adr r0, 1b4 <data>)
+ 11e:	4148      	adcs	r0, r1
+ 120:	1a88      	subs	r0, r1, r2
+ 122:	1fc8      	subs	r0, r1, #7
+ 124:	3bff      	subs	r3, #255	@ 0xff
+ 126:	4188      	sbcs	r0, r1
+ 128:	4248      	negs	r0, r1
+ 12a:	4348      	muls	r0, r1
+ 12c:	4008      	ands	r0, r1
+ 12e:	4308      	orrs	r0, r1
+ 130:	4048      	eors	r0, r1
+ 132:	4388      	bics	r0, r1
+ 134:	4208      	tst	r0, r1
+ 136:	00c8      	lsls	r0, r1, #3
+ 138:	4088      	lsls	r0, r1
+ 13a:	08c8      	lsrs	r0, r1, #3
+ 13c:	0808      	lsrs	r0, r1, #32
+ 13e:	40c8      	lsrs	r0, r1
+ 140:	10c8      	asrs	r0, r1, #3
+ 142:	1008      	asrs	r0, r1, #32
+ 144:	4108      	asrs	r0, r1
+ 146:	41c8      	rors	r0, r1
+ 148:	280a      	cmp	r0, #10
+ 14a:	4288      	cmp	r0, r1
+ 14c:	4588      	cmp	r8, r1
+ 14e:	42c8      	cmn	r0, r1
+ 150:	b248      	sxtb	r0, r1
+ 152:	b208      	sxth	r0, r1
+ 154:	b2c8      	uxtb	r0, r1
+ 156:	b288      	uxth	r0, r1
+ 158:	ba08      	rev	r0, r1
+ 15a:	6848      	ldr	r0, [r1, #4]
+ 15c:	5888      	ldr	r0, [r1, r2]
+ 15e:	9802      	ldr	r0, [sp, #8]
+ 160:	4815      	ldr	r0, [pc, #84]	@ (1b8 <data+0x4>)
+ 162:	78c8      	ldrb	r0, [r1, #3]
+ 164:	5c88      	ldrb	r0, [r1, r2]
+ 166:	88c8      	ldrh	r0, [r1, #6]
+ 168:	5a88      	ldrh	r0, [r1, r2]
+ 16a:	5688      	ldrsb	r0, [r1, r2]
+ 16c:	5e88      	ldrsh	r0, [r1, r2]
+ 16e:	6048      	str	r0, [r1, #4]
+ 170:	5088      	str	r0, [r1, r2]
+ 172:	9001      	str	r0, [sp, #4]
+ 174:	70c8      	strb	r0, [r1, #3]
+ 176:	5488      	strb	r0, [r1, r2]
+ 178:	80c8      	strh	r0, [r1, #6]
+ 17a:	5288      	strh	r0, [r1, r2]
+ 17c:	c806      	ldmia	r0!, {r1, r2}
+ 17e:	c803      	ldmia	r0, {r0, r1}
+ 180:	c00e      	stmia	r0!, {r1, r2, r3}
+ 182:	b5f0      	push	{r4, r5, r6, r7, lr}
+ 184:	bdf0      	pop	{r4, r5, r6, r7, pc}
+ 186:	b401      	push	{r0}
+ 188:	bc02      	pop	{r1}
+ 18a:	d00c      	beq.n	1a6 <_start+0xa6>
+ 18c:	d10b      	bne.n	1a6 <_start+0xa6>
+ 18e:	d20a      	bcs.n	1a6 <_start+0xa6>
+ 190:	d309      	bcc.n	1a6 <_start+0xa6>
+ 192:	d408      	bmi.n	1a6 <_start+0xa6>
+ 194:	d507      	bpl.n	1a6 <_start+0xa6>
+ 196:	d606      	bvs.n	1a6 <_start+0xa6>
+ 198:	d705      	bvc.n	1a6 <_start+0xa6>
+ 19a:	d804      	bhi.n	1a6 <_start+0xa6>
+ 19c:	d903      	bls.n	1a6 <_start+0xa6>
+ 19e:	da02      	bge.n	1a6 <_start+0xa6>
+ 1a0:	db01      	blt.n	1a6 <_start+0xa6>
+ 1a2:	dc00      	bgt.n	1a6 <_start+0xa6>
+ 1a4:	ddff      	ble.n	1a6 <_start+0xa6>
+ 1a6:	e7ff      	b.n	1a8 <_start+0xa8>
+ 1a8:	f000 f803 	bl	1b2 <func>
+ 1ac:	4798      	blx	r3
+ 1ae:	df12      	svc	18
+ 1b0:	46c0      	nop			@ (mov r8, r8)
+
+000001b2 <func>:
+ 1b2:	4770      	bx	lr
+
+000001b4 <data>:
+ 1b4:	00000000 	.word	0x00000000
+ 1b8:	12345678 	.word	0x12345678
