@@ -75,7 +75,7 @@ def load_dump(path):
                 buf, off = region(addr)
                 if (buf is None):
                     print("ERROR!")
-                    return;
+                    sys.exit(253)
                 buf[off] = b
                 addr += 1
         elif (m):
