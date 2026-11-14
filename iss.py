@@ -21,6 +21,9 @@ def fault(kind):
     print(f"FAULT {kind} at pc=0x{r[15]:08x}", file=sys.stderr)
     sys.exit(255)
 
+def load_error(msg):
+    print(f"load error: {msg}", file=sys.stderr)
+    sys.exit(253)
 
 def region(addr):
     """Return (buffer, offset) for a mapped address, or (None, 0)."""
@@ -53,12 +56,12 @@ def load_dump(path):
     """Load a `readelf -x` dump. A data line looks like
          '  0x00000100 094811df 0a2000f0 03f812df 002000df .H... ......'
     The 35 characters after the address hold up to 16 bytes; the rest is ASCII."""
+    sections.clear()
     current = None
     try:
         lines = open(path).read().splitlines()
     except OSError as e:
-        print(e, file=sys.stderr)
-        sys.exit(253)
+        load_error(sys.stderr)
     for line in lines:
         s = line.lstrip()
         m = re.match(r"\s*Hex dump of section '([^']+)':", line)
@@ -75,8 +78,7 @@ def load_dump(path):
             for b in data:
                 buf, off = region(addr)
                 if (buf is None):
-                    print("ERROR!")
-                    sys.exit(253)
+                    load_error(f"{path}:{lineno}: address 0x{addr:08x} is outside ROM/RAM") 
                 buf[off] = b
                 addr += 1
         elif (m):
