@@ -61,8 +61,8 @@ def load_dump(path):
     try:
         lines = open(path).read().splitlines()
     except OSError as e:
-        load_error(sys.stderr)
-    for line in lines:
+        load_error(str(e))
+    for lineno, line in enumerate(lines, 1):
         s = line.lstrip()
         m = re.match(r"\s*Hex dump of section '([^']+)':", line)
         if s.startswith("0x"):             # headers, blank lines
