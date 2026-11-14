@@ -322,8 +322,23 @@ def step():
         #.......
 
     
+#__________________________
+    #RSB immediate 
+
+    #RSBS <Rd>,<Rn>,#0
+    elif (hw & 0xFFC0) == 0x4240:
+        rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
+        rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+        imm32 = 0                   # immediate = 0
+
+        # set flags true
+        #.......
 
 
+
+
+    
+    
     else:
         fault("UNDEFINED")
 
