@@ -2,6 +2,7 @@
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
 import sys
 import re
+import argparse
 
 ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
 RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10     # 256 KB
@@ -150,19 +151,74 @@ def step():
     instret += 1
     # TODO: write a trace line here when --trace is given (section 6)
 
+def parse_args(argv):
+    p = argparse.ArgumentParser(prog="iss")
+    p.add_argument("--disasm", action="store_true")
+    p.add_argument("--trace", metavar="FILE")
+    p.add_argument("--max-instr", type=int, default=100_000_000)
+    p.add_argument("--seed", type=int, default=2463534242)
+    p.add_argument("--cpu", choices=("m0", "m0plus"), default="m0")
+    p.add_argument("program")
+    return p.parse_args(argv)
+
+def text_range():
+    sec = sections.get(".text")
+    if not sec or sec["start"] is None:
+        return None
+    return sec["start"], sec["end"]
+
+def read_code16(addr):
+    buf, off = region(addr)
+    if buf is None or off + 2 > len(buf):
+        print(f"load error at 0x{addr:08x}", file=sys.stderr)
+        sys.exit(253)
+    return int.from_bytes(buf[off:off + 2], "little")
+
+def disassemble_text():
+    rng = text_range()
+    if rng is None:
+        print("no .text section", file=sys.stderr)
+        sys.exit(253)
+
+    pc, end = rng
+    while pc < end:
+        hw1 = read_code16(pc)
+
+        if (hw1 >> 11) in (0b11101, 0b11110, 0b11111):
+            hw2 = read_code16(pc + 2)
+            enc = f"{hw1:04x}{hw2:04x}"
+            text = decode32(pc, hw1, hw2)
+            size = 4
+        else:
+            enc = f"{hw1:04x}"
+            text = decode16(pc, hw1)
+            size = 2
+
+        print(f"{pc:08x}: {enc} {text}")
+        pc += size
 
 def main():
-    # TODO: parse the options in section 6
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} PROGRAM", file=sys.stderr)
-        sys.exit(2)
-    load_dump(sys.argv[1])
+    global MAX_INSTR, seed, cpu
+    args = parse_args(sys.argv[1:])
+
+    MAX_INSTR = args.max_instr
+    seed = args.seed
+    cpu = args.cpu
+
+    load_dump(args.program)
+
+    if args.disasm:
+        disassemble_text()
+        return
+
     reset()
+
     while True:
         if instret >= MAX_INSTR:
             print(f"LIMIT at pc=0x{r[15]:08x}", file=sys.stderr)
             sys.exit(254)
         step()
+
 
 
 if __name__ == "__main__":
