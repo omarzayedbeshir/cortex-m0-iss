@@ -112,9 +112,36 @@ def step():
     nxt = pc + 2
 
     if (hw >> 11) in (0b11101, 0b11110, 0b11111):    # first half of a 32-bit instruction
-        hw2 = read_mem(pc + 2, 2)
-        nxt = pc + 4
-        fault("UNDEFINED")                            # TODO: BL, from hw and hw2
+        hw2 = read_mem(pc + 2, 2)               
+                              # TODO: BL, from hw and hw2
+        if (hw & 0xF800) == 0xF000 and (hw2 & 0xD000) == 0xD000:   # BL <label>
+            S = (hw >> 10) & 0x1               # extract S from hw bit 10
+            imm10 = (hw >> 0) & 0x3FF          # extract imm10 from hw bits 9-0
+            J1 = (hw2 >> 13) & 0x1             # extract J1 from hw2 bit 13
+            J2 = (hw2 >> 11) & 0x1             # extract J2 from hw2 bit 11
+            imm11 = (hw2 >> 0) & 0x7FF         # extract imm11 from hw2 bits 10-0
+
+            I1 = ~(J1 ^ S) & 0x1               # NOT(J1 EOR S)      
+            I2 = ~(J2 ^ S) & 0x1               # NOT(J2 EOR S)
+
+            # SignExtend(S:I1:I2:imm10:imm11:'0', 32)
+            imm25 = imm11 << 1             # bits 11-1 (with '0' at bit 0)
+            imm25 += imm10 << 12           # bits 21-12
+            imm25 += I2 << 22              # bit 22
+            imm25 += I1 << 23              # bit 23
+            imm25 += S << 24               # bit 24 (sign bit)
+
+            # Sign-extend from 25 bits to 32 bits
+            if S == 1:
+                imm32 = imm25 - (1 << 25)  # subtract 2^25 (0x2000000) if negative
+            else:
+                imm32 = imm25
+
+                        # return 
+        else:
+            fault("UNDEFINED")
+
+
     elif (hw & 0xF800) == 0x2000:                     # MOVS Rd, #imm8
         rd = (hw >> 8) & 7
         r[rd] = hw & 0xFF
@@ -128,7 +155,71 @@ def step():
         svc(hw & 0xFF)
     # TODO: the other instructions in section 4 of the handout
 
+    # B label conditional 
+    # imm8
+    elif (hw & 0xF000) == 0xD000:              # B<c> <label>
+        imm8 = (hw >> 0) & 0xFF                # extract imm8 from bits 7-0
+        cond = (hw >> 8) & 0xF                 # extract cond from bits 11-8
+
+        # Validate structure before creating Instruction object
+        if cond == 0xE:                        # cond == '1110' -> UNDEFINED (UDF)
+            fault("UNDEFINED")
+
+        if cond == 0xF: 
+            svc(hw & 0xFF)
     
+        # SignExtend(imm8:'0', 32)
+        if imm8 & 0x80:     # signed
+            imm32 = (imm8 - 0x100) << 1 #
+        else:
+            imm32 = imm8 << 1   
+
+        # ret inst
+    
+    #imm11
+    elif (hw& 0xF800) == 0xE0000:
+        imm11 = (hw >> 0) & 0x7FF # extracting imm11 from 10-0
+        
+
+        # SignExtend(imm8:'0', 32)
+        if imm11 & 0x0400 :    # signed
+            imm32 = (imm11 - 0x100) << 1 #
+
+        else:
+            imm32 = imm8 << 1   
+#------------------------------------------
+
+# BX 
+
+    elif (hw & 0xFF80) == 0x4700:              # BX <Rm>
+        rm = (hw >> 3) & 0xF                   # extract rm from bits 6-3 (4-bit register)
+        m = rm
+
+        # Validate structure before creating Instruction object
+        if ((hw & 0x7) != 0 ) or m == 15:         # bits [2:0] != '000' or m == 15 -> UNPREDICTABLE
+            fault ("UNPREDICTABLE")
+
+        # instruc...
+
+# BLX register 
+    elif (hw & 0xFF80) == 0x4780:              # BLX <Rm>
+        rm = (hw >> 3) & 0xF                   # extract rm from bits 6-3 (4-bit register)
+        m = rm
+
+        # Validate structure before creating Instruction object
+        if (hw & 0x7) != 0 or m == 15:         # bits [2:0] != '000' or m == 15 -> UNPREDICTABLE
+            fault("UNPREDICTABLE")
+
+        #............
+
+
+#_-----------_-------------------
+
+    # NOP 
+    elif (hw & 0xFFFF) == 0xBF00:              
+        pass
+    
+#_--------------------------------
     #MVN
     elif (hw & 0xFFC0) == 0x43C0:
        # MVN Rd, Rm
@@ -795,10 +886,72 @@ def step():
 
 
 
+#--------------------------------
+#  Multiple instructions: 
+#--------------------------------
 
 
+    # LDM =
+    elif (hw & 0xF800) == 0xC800:      # LDM <Rn>{!},<registers>
+
+        register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
+        rn = (hw >> 8) & 0x7               # extract rn from bits 10-8
+
+        n = rn
+        registers = register_list          # '00000000':register_list
+        
+
+        if registers.bit_count() < 1: 
+            fault ("UNPREDICTABLE")
 
 
+    # STM 
+    elif (hw & 0xF800) == 0xC000:      # STM <Rn>!,<registers>
+        register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
+        rn = (hw >> 8) & 0x7               # extract rn from bits 10-8
+
+        n = rn
+        registers = register_list          # '00000000':register_list
+        #wback = True                       # STM T1 always writes back to Rn
+
+        if registers.bit_count() < 1: 
+            fault ("UNPREDICTABLE")
+
+    # PUSH 
+    elif (hw & 0xFE00) == 0xB400:      # PUSH <registers>
+        register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
+        M = (hw >> 8) & 0x1                # extract M (LR) from bit 8
+
+        n = 13                             # SP
+
+        if M == 1:
+            registers = 0x4000 | register_list   # include LR (bit 14)
+        else:
+            registers = register_list
+         
+        
+        #unalignedAllowed is false
+
+        if registers.bit_count() < 1: 
+            fault ("UNPREDICTABLE")
+
+    # POP 
+    elif (hw & 0xFE00) == 0xBC00:      # POP <registers>
+        register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
+        P = (hw >> 8) & 0x1                # extract P (PC) from bit 8
+
+        n = 13                             # SP
+
+        if P == 1:           # P:'0000000':register_list
+            registers = 0x8000 | register_list
+        else:
+            registers = register_list
+
+        
+        #unalignedAllowed is false
+
+        if registers.bit_count() < 1: 
+            fault ("UNPREDICTABLE")
 
 
     else:
