@@ -174,6 +174,39 @@ def step():
         #.....
 
 #-----------------------------
+
+# 
+# decoding add (sp + register) before add register to aovid 
+# special cases collision. we first check the edge case if not 
+# applicable we move to check the rest of cases.
+    
+    #ADD (SP + register)
+
+    #ADD SP,<Rm>
+    elif (hw & 0xFF87) == 0x4485:
+        rm = (hw >> 3) & 0x000F        # extract rm from bits 3-6
+        d = 13
+        if (rm == 0b1101): 
+            pass
+        
+
+        # set flags false
+        #.........
+
+
+    #ADD <Rdm>, SP, <Rdm>
+    elif (hw & 0xFF78) == 0x4468: 
+        rdm = (hw >> 0) & 0x7        # extract rdm from bits 2-0
+        dm = (hw >> 7) & 0x1        # extract dm from bit 7
+        d = (dm << 3) | rdm        # d = dm:rdm
+        m = (dm << 3) | rdm        # m = dm:rdm
+
+        # set flags false
+        #.........
+        
+    
+
+#__________________________
     #ADD register
     
     #ADDS <Rd>,<Rn>,<Rm>
@@ -206,7 +239,7 @@ def step():
 
     elif (hw & 0xF800) == 0xA800:
         imm8 = (hw >> 0) & 0x00FF        # extract imm8 from bits 7-0
-        rd = (hw >> 3) & 0x7        # extract rd from bits 10-8
+        rd = (hw >> 8) & 0x7        # extract rd from bits 10-8
         imm32 = imm8 << 2              # imm32 = imm8 * 4
 
         # flags false
@@ -221,30 +254,6 @@ def step():
         # set flags false
         #........
 
-#__________________________
-    
-    #ADD (SP + register)
-
-    #ADD <Rdm>, SP, <Rdm>
-    elif (hw & 0xFF78) == 0x4468: 
-        rdm = (hw >> 0) & 0x7        # extract rdm from bits 2-0
-        dm = (hw >> 7) & 0x1        # extract dm from bit 7
-        d = (dm << 3) | rdm        # d = dm:rdm
-        m = (dm << 3) | rdm        # m = dm:rdm
-
-        # set flags false
-        #.........
-        
-    #ADD SP,<Rm>
-    elif (hw & 0xFF87) == 0x4485:
-        rm = (hw >> 3) & 0x000F        # extract rm from bits 3-6
-        d = 13
-        if (rm == 0b1101): 
-            pass
-        
-
-        # set flags false
-        #.........
 #__________________________
     #ADR 
     #ADR <Rd>,<label>
@@ -352,6 +361,7 @@ def step():
 #__________________________
 
 # Logic and shifts: 
+#__________________________
 
     #AND register 
 
@@ -403,7 +413,7 @@ def step():
     
     #TST <Rn>,<Rm>
     elif (hw & 0xFFC0) == 0x4200:
-        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
         # set flags true
@@ -455,8 +465,333 @@ def step():
         # set flags true
         #.......
     
+#__________________________
+    # Compare: 
+#__________________________
+    #CMP register
+
+    #CMP <Rn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4280:   
+        rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+
+    #CMP <Rn>,<Rm>
+    elif (hw & 0xFF00) == 0x4500:
+        rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
+        rm = (hw >> 3) & 0xF        # extract rm from bits 3-6
+        N = (hw >> 7) & 0x1        # extract N from bit 7
+        n = (N << 3) | rn          # n = N:rn
+
+        if n < 8 and rm < 8:
+            fault("UNPREDICTABLE")
+
+        if n == 15 and rm == 15:
+            fault("UNPREDICTABLE")
+     
+
+    #CMP immediate 
+    #CMP <Rn>,#<imm8>
+    elif (hw & 0xF800) == 0x2800:
+        imm8 = (hw >> 0) & 0x00FF     # extract imm8 from bits 7-0
+        rn = (hw >> 8) & 0x0007       # extract rn from bits 10-8
+
+        n = rn
+        imm32 = imm8,   #zero extension imm8:00, 32
+
+    
+    # CMN register
+
+    #CMN <Rn>,<Rm>
+    elif (hw & 0xFFC0) == 0x42C0:
+
+        rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 3-5
+
+        n = rn 
+        m = rm 
+        
+#__________________________
+    # Extend and Reverse: 
+#__________________________
+    #SXTB 
 
 
+    #SXTB <Rd>,<Rm>
+    elif (hw & 0xFFC0) == 0xB240:
+        rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 3-5
+
+        d = rd 
+        m = rm 
+        rotate = 0
+
+        # set flags true
+        #.......
+
+
+    #SXTH 
+
+
+    #SXTH <Rd>,<Rm>
+    elif (hw & 0xFFC0) == 0xB200:
+        rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 3-5
+
+        d = rd 
+        m = rm 
+        rotate = 0
+
+        # set flags true
+        #.......
+
+#__________________________
+    # Load and Store: 
+#__________________________
+
+    # register
+    elif (hw & 0xF00) == 0x5:
+        if (hw & 0x0E00) == 0x0000:      # STR register # STR <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt
+            n =rn 
+            m = rm 
+            
+            #index = true
+            # add = true 
+            #wback = false
+
+            
+
+        elif (hw & 0x0E00) == 0x0200:    # STRH register # STRH <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt
+            n =rn 
+            m = rm 
+            
+            #index = true
+            # add = true 
+            #wback = false
+            
+
+        elif (hw & 0x0E00) == 0x0400:    # STRB register # STRB <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt
+            n =rn 
+            m = rm 
+            
+            #index = true
+            # add = true 
+            #wback = false
+
+        elif (hw & 0x0E00) == 0x0600:    # LDRSB register # LDRSB <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt
+            n =rn 
+            m = rm 
+            
+            #index = true
+            # add = true 
+            #wback = false
+
+        elif (hw & 0x0E00) == 0x0800:    # LDR register # LDR <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt
+            n = rn 
+            m = rm 
+
+            #index = true
+            # add = true 
+            #wback = false
+
+        elif (hw & 0x0E00) == 0x0A00:    # LDRH register # LDRH <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt 
+            n = rn 
+            m = rm 
+
+            #index = true
+            #add true 
+            #wback false
+
+        elif (hw & 0x0E00) == 0x0C00:    # LDRB register # LDRB <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt 
+            n = rn 
+            m = rm 
+
+            #index = true
+            #add true 
+            #wback false
+
+        elif (hw & 0x0E00) == 0x0E00:    # LDRSH register # LDRSH <Rt>,[<Rn>,<Rm>]
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            t = rt
+            n =rn 
+            m = rm 
+            
+            #index = true
+            # add = true 
+            #wback = false
+
+        # immediate ---------------
+
+
+    # STR immediate 
+
+    # STR <Rt>,[<Rn>{,#<imm5>}]
+    elif (hw & 0xF800) == 0x6000:      
+        rt = (hw >> 0) & 0x7           # extract rt from bits 2-0
+        rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
+        imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
+
+        t = rt
+        n = rn
+        imm32 = imm5 << 2              # ZeroExtend(imm5:'00', 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+    
+     # STR <Rt>,[SP,#<imm8>]
+    elif (hw & 0xF800) == 0x9000:      
+        imm8 = (hw >> 0) & 0xFF        # extract imm8 from bits 7-0
+        rt = (hw >> 8) & 0x7           # extract rt from bits 10-8
+
+        t = rt
+        n = 13                         # SP
+        imm32 = imm8 << 2              # ZeroExtend(imm8:'00', 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+    # LDR immediate 
+
+    # LDR <Rt>,[<Rn>{,#<imm5>}]
+    elif (hw & 0xF800) == 0x6800:     
+        rt = (hw >> 0) & 0x7           # extract rt from bits 2-0
+        rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
+        imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
+
+        t = rt
+        n = rn
+        imm32 = imm5 << 2              # ZeroExtend(imm5:'00', 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+   
+    # LDR <Rt>,[SP{,#<imm8>}]
+    elif (hw & 0xF800) == 0x9800:     
+        imm8 = (hw >> 0) & 0xFF        # extract imm8 from bits 7-0
+        rt = (hw >> 8) & 0x7           # extract rt from bits 10-8
+
+        t = rt
+        n = 13                         # SP
+        imm32 = imm8 << 2              # ZeroExtend(imm8:'00', 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+
+    # STRB immediate 
+
+
+    # STRB <Rt>,[<Rn>{,#<imm5>}]
+    elif (hw & 0xF800) == 0x7000:      
+        rt = (hw >> 0) & 0x7           # extract rt from bits 2-0
+        rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
+        imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
+
+        t = rt
+        n = rn
+        imm32 = imm5                   # ZeroExtend(imm5, 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+
+    # LDRB immediate 
+
+
+    # LDRB <Rt>,[<Rn>{,#<imm5>}]
+    elif (hw & 0xF800) == 0x7800:     
+        rt = (hw >> 0) & 0x7           # extract rt from bits 2-0
+        rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
+        imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
+
+        t = rt
+        n = rn
+        imm32 = imm5                   # ZeroExtend(imm5, 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+    # STRH immediate 
+
+
+    # STRH <Rt>,[<Rn>{,#<imm5>}]
+    elif (hw & 0xF800) == 0x8000:      
+        rt = (hw >> 0) & 0x7           # extract rt from bits 2-0
+        rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
+        imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
+
+        t = rt
+        n = rn
+        imm32 = imm5 << 1              # ZeroExtend(imm5:'0', 32)
+
+        #index = true
+        #add = true
+        #wback = false
+
+    # LDRH immediate 
+
+
+    # LDRH <Rt>,[<Rn>{,#<imm5>}]
+    elif (hw & 0xF800) == 0x8800:      
+        rt = (hw >> 0) & 0x7           # extract rt from bits 2-0
+        rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
+        imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
+
+        t = rt
+        n = rn
+        imm32 = imm5 << 1              # ZeroExtend(imm5:'0', 32)
+
+        #index = true
+        #add = true
+        #wback = false
 
 
 
