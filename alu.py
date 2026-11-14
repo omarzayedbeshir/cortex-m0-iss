@@ -1,54 +1,59 @@
+from calendar import setfirstweekday
 from os import cpu_count
 from tkinter.tix import InputOnly
 from instruction import INSTRUCTION
 from cpu import CPU 
 
 
-class alu:     
     
-    def execute (self, instr: INSTRUCTION, cpu: CPU):
-        
-        #denitfy the instructin type
-        match instr.type:
-            case "ADD"  : self.ADD(instr, cpu)
-            case "ADC"  : self.ADC(instr, cpu)
-            case "SUB"  : self.SUB(instr, cpu)
-            case "RSBS" : self.RSBS(instr, cpu)
+    
+def execute ( instr: INSTRUCTION, cpu: CPU):
+  
+  #denitfy the instructin type
+  match instr.type:
+      case "ADD"  : ADD(instr, cpu)
+      case "ADC"  : ADC(instr, cpu)
+      case "SUB"  : SUB(instr, cpu)
+      case "RSB"  : RSB(instr, cpu)
+      case "MUL"  : MUL(instr, cpu)
+      case "AND"  : AND(instr, cpu)
+      case "ORR"  : ORR(instr, cpu)
+      case "EOR"  : EOR(instr, cpu)
+  return 
 
 
-    def ADD(self, instr: INSTRUCTION, cpu: CPU):
-        input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
-        #check if second register is just an imm
-        if(instr.isImm): 
-            input_2 = mask32(instr.imm)
-        else:
-            input_2 = mask32(cpu.r[instr.rs2])
-         
-        #count sum
-        res = (input_1 + input_2)
-        cpu.r[instr.rd] = mask32(res)
-        #if flags should changed in case ADDS
-        if( instr.set_flags):
-           handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C))
-        
-        return 
+def ADD( instr: INSTRUCTION, cpu: CPU):
+     input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
+     #check if second register is just an imm
+     if(instr.isImm): 
+         input_2 = mask32(instr.imm)
+     else:
+         input_2 = mask32(cpu.r[instr.rs2])
+      
+     #count sum
+     res = (input_1 + input_2)
+     cpu.r[instr.rd] = mask32(res)
+     #if flags should changed in case ADDS
+     if( instr.set_flags):
+        handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C))
+     
+     return 
+def ADC( instr: INSTRUCTION, cpu: CPU):
+     input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
+     #rs2
+     input_2 = mask32(cpu.r[instr.rs2])
+      
+     #count sum
+     res = input_1 + input_2 + cpu.C # rs1, rs2, carry
+     
+     cpu.r[instr.rd] = mask32(res)
+     #if flags should changed in case ADDS
+     if(instr.set_flags):
+        handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C)) 
+     
+     return 
 
-    def ADC(self, instr: INSTRUCTION, cpu: CPU):
-        input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
-        #rs2
-        input_2 = mask32(cpu.r[instr.rs2])
-         
-        #count sum
-        res = input_1 + input_2 + cpu.C # rs1, rs2, carry
-        
-        cpu.r[instr.rd] = mask32(res)
-        #if flags should changed in case ADDS
-        if(instr.set_flags):
-           handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C)) 
-        
-        return 
-
-    def SUB(self, instr: INSTRUCTION, cpu: CPU):
+def SUB( instr: INSTRUCTION, cpu: CPU):
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
         #check if second register is just an imm
         if(instr.isImm): 
@@ -63,8 +68,8 @@ class alu:
             handleFlags_SUB(cpu, input_1, input_2)
             
         return 
-    #SBCS r0, r1     no immdiate   
-    def SBC(self, instr: INSTRUCTION, cpu: CPU):
+ #SBCS r0, r1     no immdiate   
+def SBC( instr: INSTRUCTION, cpu: CPU):
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
         #not immdiate
         input_2 = mask32(cpu.r[instr.rs2])
@@ -77,14 +82,166 @@ class alu:
             handleFlags_SUB(cpu, input_1, input_2, borrow )
             
         return     
+ 
+ #RSBS R0, R1, #0  no immdiate other than 0 supported, always set flags
+def RSB(instr: INSTRUCTION, cpu: CPU):
+     input_1 = cpu.r[instr.rs1]  
+     res = 0 - input_1         #negate
+     
+     cpu.r[instr.rd] = mask32(res)  
+     
+     handleFlags_SUB(cpu, 0, input_1)
+         
+     return 
+ #            
+
+#MULS r0, r1
+def MUL(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]
+    input_2 = cpu.r[instr.rs2]
     
-    #RSBS R0, R1, #0 or RSBS R0, #0, no immdiate other than 0 supported
-    def RSB(self, instr: INSTRUCTION, cpu: CPU):
-        input_1 = cpu.r[instr.rs1]  
-        input_1 = 0-input_1         #negate
-                
+    res = input_1 * input_2 
+    res = mask32(res)
+    cpu.r[instr.rd] = res
+    
+    #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+        
+
+    return
+    
+#--------------------------- BITWISE ---------------------------------#
+#ANDS r0, r1    no immdiate expected
+def AND(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]
+    input_2 = cpu.r[instr.rs2]
+    res = input_1 & input_2
+    cpu.r[instr.rd] = mask32(res) 
+    
+    #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+    
+    return
+
+def ORR(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]
+    input_2 = cpu.r[instr.rs2]
+    res = input_1 | input_2
+    cpu.r[instr.rd] = mask32(res)
+    
+    #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+    
+    return
+
+def EOR(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]
+    input_2 = cpu.r[instr.rs2]
+    res = input_1 ^ input_2
+    cpu.r[instr.rd] = mask32(res)
+    
+    #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+    
+    return
+#bit Clear : BICS r0, r1
+def BIC(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]
+    input_2 = cpu.r[instr.rs2]
+    res = input_1 &(~input_2)   # r0 & (not r1)
+    cpu.r[instr.rd] = mask32(res)
+    
+    #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+    
+    return
+
+#TST r0, r1
+def TST(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]
+    input_2 = cpu.r[instr.rs2]
+    res = input_1 & input_2
+    res = mask32(res)
+    
+    #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+    
+    return
 
 
+#----------------------------- LOGICAL -----------------------------
+
+#LSLS r0, r1, #2 or LSLS r0, r1
+def LSL(instr: INSTRUCTION, cpu: CPU):
+    
+
+    input_1 = cpu.r[instr.rs1]
+    
+    if(instr.isImm):
+        shiftby = instr.imm 
+    else:
+        shiftby = (cpu.r[instr.rs2] & 0x011)    #lower 8 bits
+    
+    res = mask32(input_1 << shiftby)
+    
+    cpu.r[instr.rd]  = res
+    
+    if(shiftby==0):#nochange
+        return 
+     #in-palce flag update
+    if((res & 0x8000_0000)):#check negative flag
+        cpu.N = True
+    else:
+         cpu.N = False   
+    if(res == 0): #check zero
+        cpu.Z = True 
+    else: 
+        cpu.Z = False
+     
+    cpu.C = bool(res&0x1_0000_0000)#last out bit shifted
+    return 
 #helper functino
 def mask32(input):
     return (input & 0xFFFFFFFF) #return only first 32 bits
