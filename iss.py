@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
 import sys
+from cpu import CPU
 
+MAX_INSTR = 100_000_000
 ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
 RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10     # 256 KB
-MAX_INSTR = 100_000_000
+
 
 rom = bytearray(ROM_SIZE)
 ram = bytearray(RAM_SIZE)
-r = [0] * 16                    # r[13] = sp, r[14] = lr, r[15] = pc
-N = Z = C = V = 0               # the APSR flags
-instret = 0
-
 
 def fault(kind):
     print(f"FAULT {kind} at pc=0x{r[15]:08x}", file=sys.stderr)
@@ -69,13 +67,13 @@ def load_dump(path):
 
 
 def reset():
-    r[13] = read_mem(0, 4)                     # initial sp
+    cpu.r[13] = read_mem(0, 4)                     # initial sp
     pc = read_mem(4, 4)                        # reset vector
-    r[15] = pc                                 # diagnostic uses the reset vector
+    cpu.r[15] = pc                                 # diagnostic uses the reset vector
     if not (pc & 1):
         fault("INVSTATE")
-    r[15] = pc & ~1
-    r[14] = 0xFFFFFFFF
+    cpu.r[15] = pc & ~1
+    cpu.r[14] = 0xFFFFFFFF
 
 
 def set_nz(x):
@@ -91,12 +89,12 @@ def svc(n):
     elif n == 0x10:                            # PUTCHAR
         sys.stdout.buffer.write(bytes([r[0] & 0xFF]))
     elif n == 0x11:                            # PUTS
-        a = r[0]
+        a = cpu.r[0]
         while read_mem(a, 1) != 0:
             sys.stdout.buffer.write(bytes([read_mem(a, 1)]))
             a += 1
     elif n == 0x12:                            # PUTINT
-        v = r[0] - (1 << 32) if r[0] & 0x80000000 else r[0]
+        v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else r[0]
         sys.stdout.buffer.write(str(v).encode("ascii"))
     # TODO: the other services in section 5 of the handout
     else:
@@ -107,7 +105,7 @@ def step():
     """Execute one instruction. r[15] holds the address of the current
     instruction; an instruction that reads pc must see r[15] + 4."""
     global instret
-    pc = r[15]
+    pc = cpu.r[15]
     hw = read_mem(pc, 2)
     nxt = pc + 2
 
@@ -130,13 +128,14 @@ def step():
     else:
         fault("UNDEFINED")
 
-    r[15] = nxt & 0xFFFFFFFF
-    instret += 1
+    cpu.r[15] = nxt & 0xFFFFFFFF
+    cpu.instret += 1
     # TODO: write a trace line here when --trace is given (section 6)
 
 
 def main():
     # TODO: parse the options in section 6
+    cpu = CPU()
     if len(sys.argv) != 2:
         print(f"usage: {sys.argv[0]} PROGRAM", file=sys.stderr)
         sys.exit(2)
@@ -144,7 +143,7 @@ def main():
     reset()
     while True:
         if instret >= MAX_INSTR:
-            print(f"LIMIT at pc=0x{r[15]:08x}", file=sys.stderr)
+            print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
             sys.exit(254)
         step()
 
