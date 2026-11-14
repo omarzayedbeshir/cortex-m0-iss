@@ -127,6 +127,87 @@ def step():
     elif (hw & 0xFF00) == 0xDF00:                     # SVC #imm8
         svc(hw & 0xFF)
     # TODO: the other instructions in section 4 of the handout
+
+    # Data processing instructions:
+    
+    #MVN
+    elif (hw & 0x4000) == 0x4000 and (hw & 0xF800) == 0x4300:
+       # MVN Rd, Rm
+        rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+        r[rd] = (~r[rm]) & 0xFFFFFFFF   # set rd register = bitwise NOT of rm , mask used to restrict to 16 bits
+        set_nz(r[rd])   # update flags
+    
+
+#------------------------------
+    #ADCS register
+
+    # ADCS <Rdn>,<Rm>
+    elif (hw & 0xFC00) == 0x4000 and (hw & 0x03C0) == 0x0140:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags
+        #.....
+
+#------------------------------
+    #ADD immediate
+
+    #ADDS <Rd>,<Rn>,#<imm3>
+    elif (hw & 0xFE00) == 0x1C00:
+        rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
+        rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+        imm3 = (hw >> 6) & 0x7      # extract imm3 from bits 8-6
+        
+        # set flags
+        #.....
+
+
+    #ADDS <Rdn>,#<imm8>
+    elif (hw & 0xF800) == 0x3000:
+        imm8  = (hw >> 0) & 0xFF       # extract imm8 from bits 7-0
+        rdn = (hw >> 8) & 0x7          # extract rdn from bits 10-8
+
+        # set flags
+        #.....
+
+#-----------------------------
+    #ADD register
+    
+    #ADDS <Rd>,<Rn>,<Rm>
+    elif (hw & 0xF000) == 0x1000 and (hw & 0x0E00) == 0x0800:
+        rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
+        rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+        rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+        r[rd] = (r[rd] + r[rm]) & 0xFFFFFFFF   # set rd register = rd + rm , mask used to restrict to 16 bits
+        set_nz(r[rd])   # update flags
+
+    #ADD <Rdn>,<Rm>
+    elif (hw & 0xFF00) == 0x4400:
+        rdn = (hw >> 0 ) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0xF        # extract rm from bits 3 - 6
+        dn = (hw >>7) & 0x1        # extract dn from bit 7  
+
+        if ((dn << 3) | rdn == 0b1101 ) or ((dn << 3) | rm == 0b1101 ):
+            
+            # see ADD (SP + register)
+
+        if (r[rdn] == 15 and r[rm] == 15):
+            fault("UPREDICTABLE")
+
+#_________________________
+
+    #ADD (SP + register)
+
+    #ADD <Rd>,SP,#<imm8>
+    
+
+
+
+
+
+
     else:
         fault("UNDEFINED")
 
