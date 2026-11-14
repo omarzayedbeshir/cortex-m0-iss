@@ -308,8 +308,20 @@ def step():
         #.......
 
 
+    #__________________________
+    #SBC register 
+
+    #SBCS <Rdn>,<Rm>
+
+    elif (hw & 0xFFC0) == 0x4180: 
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
 
+        # set flags true
+        #.......
+
+    
 
 
     else:
