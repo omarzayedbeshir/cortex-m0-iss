@@ -72,7 +72,7 @@ def reset():
     r[13] = read_mem(0, 4)                     # initial sp
     pc = read_mem(4, 4)                        # reset vector
     r[15] = pc                                 # diagnostic uses the reset vector
-    if not pc & 1:
+    if not (pc & 1):
         fault("INVSTATE")
     r[15] = pc & ~1
     r[14] = 0xFFFFFFFF
