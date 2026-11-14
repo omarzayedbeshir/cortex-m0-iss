@@ -139,7 +139,7 @@ def step():
         # .......
 
     
-
+# Arithmetic instructins: 
 #------------------------------
     #ADCS register
 
@@ -337,8 +337,135 @@ def step():
 
 
 
+#__________________________
+    #MUL 
+
+    #MULS <Rdm>,<Rn>,<Rdm>
+    elif (hw & 0xFFC0) == 0x4340:
+        rdm = (hw >> 0) & 0x7        # extract rdm from bits 2-0
+        rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+  
+
+        # set flags true
+        #.......
+
+#__________________________
+
+# Logic and shifts: 
+
+    #AND register 
+
+    # ANDS <Rdn>,<Rm> 
+    elif (hw& 0xFFC0) == 0x4000:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+
+        # set flags true
+        #....... 
+
+
+#__________________________
+    # ORR register 
+
+    # ORRS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4300:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
     
+#__________________________
+    #EOR register
     
+    #EORS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4040:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+ 
+#__________________________
+    #BIC register 
+    
+    #BICS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4380:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+    
+#__________________________
+    #TST register 
+    
+    #TST <Rn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4200:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+    
+
+#__________________________
+    #LSL register 
+    
+    #LSLS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4080:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+
+
+#__________________________
+    #LSR register 
+    
+    #LSRS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x40C0:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+
+#__________________________
+    #ASR register 
+    
+    #ASRS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x4100:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+
+#__________________________
+    #ROR register 
+    
+    #RORS <Rdn>,<Rm>
+    elif (hw & 0xFFC0) == 0x41C0:
+        rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
+        rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
+
+        # set flags true
+        #.......
+    
+
+
+
+
+
+
+
+
+
+
+
     else:
         fault("UNDEFINED")
 
