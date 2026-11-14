@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
 import sys
+import re
 
 ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
 RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10     # 256 KB
@@ -12,6 +13,8 @@ r = [0] * 16                    # r[13] = sp, r[14] = lr, r[15] = pc
 N = Z = C = V = 0               # the APSR flags
 instret = 0
 
+# All sections like text and other
+sections = {}
 
 def fault(kind):
     print(f"FAULT {kind} at pc=0x{r[15]:08x}", file=sys.stderr)
@@ -49,6 +52,7 @@ def load_dump(path):
     """Load a `readelf -x` dump. A data line looks like
          '  0x00000100 094811df 0a2000f0 03f812df 002000df .H... ......'
     The 35 characters after the address hold up to 16 bytes; the rest is ASCII."""
+    current = None
     try:
         lines = open(path).read().splitlines()
     except OSError as e:
@@ -56,17 +60,29 @@ def load_dump(path):
         sys.exit(253)
     for line in lines:
         s = line.lstrip()
-        if not s.startswith("0x"):             # headers, blank lines
-            continue
-        addr = int(s[2:10], 16)
-        for byte in bytes.fromhex(s[11:46]):
-            buf, off = region(addr)
-            if buf is None:
-                print("load error", file=sys.stderr)
-                sys.exit(253)
-            buf[off] = byte
-            addr += 1
+        m = re.match(r"\s*Hex dump of section '([^']+)':", line)
+        if s.startswith("0x"):             # headers, blank lines
+            addr = int(s[2:10], 16)
+            data = bytes.fromhex(s[11:46])
 
+            if (current is not None):
+                sec = sections[current]
+                if sec["start"] is None:
+                    sec["start"] = addr
+                sec["end"] = addr + len(data)
+                    
+            for b in data:
+                buf, off = region(addr)
+                if (buf is None):
+                    print("ERROR!")
+                    return;
+                buf[off] = b
+                addr += 1
+        elif (m):
+            current = m.group(1)
+            sections[current] = {"start": None, "end": None}
+        else: # if line is empty after we removed new lines and spaces or any of cases not above 
+            continue
 
 def reset():
     r[13] = read_mem(0, 4)                     # initial sp
