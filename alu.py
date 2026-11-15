@@ -1,11 +1,15 @@
 from calendar import setfirstweekday
 from os import cpu_count
 from tkinter.tix import InputOnly
+from xml.etree.ElementTree import tostring
 from instruction import INSTRUCTION
 from cpu import CPU 
 
-
-    
+                #-------------------------------------------------------------------------#
+                #This ALU is done by @BawahabYousefOmar For CSCE Assymbly course in AUC   |
+                #Assume CPU registers always contain unsigned 32-bit values               |
+                #                                                                         |
+                #-------------------------------------------------------------------------#   
     
 def execute ( instr: INSTRUCTION, cpu: CPU):
   
@@ -191,7 +195,7 @@ def BIC(instr: INSTRUCTION, cpu: CPU):
     
     return
 
-#TST r0, r1
+#TST r0, r1, like AND, no store 
 def TST(instr: INSTRUCTION, cpu: CPU):
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
@@ -222,29 +226,98 @@ def LSL(instr: INSTRUCTION, cpu: CPU):
     if(instr.isImm):
         shiftby = instr.imm 
     else:
-        shiftby = (cpu.r[instr.rs2] & 0x011)    #lower 8 bits
+        shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
     
-    res = mask32(input_1 << shiftby)
+    res = (input_1 << shiftby)
     
-    cpu.r[instr.rd]  = res
+    cpu.r[instr.rd]  = mask32(res)
     
-    if(shiftby==0):#nochange
-        return 
-     #in-palce flag update
-    if((res & 0x8000_0000)):#check negative flag
-        cpu.N = True
-    else:
-         cpu.N = False   
-    if(res == 0): #check zero
-        cpu.Z = True 
-    else: 
-        cpu.Z = False
-     
-    cpu.C = bool(res&0x1_0000_0000)#last out bit shifted
+    if(instr.set_flags):
+        handleFlags_LS(cpu, res, input_1, shiftby)
+   
     return 
+
+def LSR(instr: INSTRUCTION, cpu: CPU):
+    
+    input_1 = cpu.r[instr.rs1]
+    
+    if(instr.isImm):
+        shiftby = instr.imm         #imm have the decoded shift amount like LSR r0, r1, #32
+    else:
+        shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
+    
+    res = (input_1 >> shiftby)
+    
+    cpu.r[instr.rd]  = mask32(res)
+    
+    if(instr.set_flags):
+        handleFlags_LS(cpu, res, input_1, shiftby, shiftLeft=False)
+   
+    return
+
+def ASR(instr: INSTRUCTION, cpu: CPU):
+    input_1 = cpu.r[instr.rs1]  #assuming input_1 stored as unsigned integer 
+    
+    if(instr.isImm):
+        shiftby = instr.imm       
+    else:
+        shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
+    
+    #sign before shifting nad leave it to python 
+    input_1 = toSigned32(input_1)
+        
+    res = mask32((input_1 >> shiftby))
+    
+    #check sign -ultranative way
+    # if(input_1 & 0x8000_0000):
+    #     if(shiftby>=32):
+    #         res = 0xFFFF_FFFF
+    #     else:
+    #         mask =  ((pow(2, shiftby))-1) << (32 - shiftby) 
+    #         res = res | mask         
+         
+    cpu.r[instr.rd] = res 
+    
+    #inplace handling flags
+    if(instr.set_flags):
+        cpu.N = bool(res & 0x80000000)     #is negative? 1:0
+        cpu.Z = (res==0)             #is Zero
+        if(0<shiftby<32):                  
+            cpu.C = bool((input_1>>(shiftby-1)) & 1)
+        elif(shiftby>=32):
+            cpu.C =  bool(input_1& 0x8000_0000)
+        
+    return
+
+#RORS R0, R1, no immdiate expected
+def ROR(instr: INSTRUCTION, cpu: CPU):
+    
+    input_1 = cpu.r[instr.rs1]
+    shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
+    res = input_1
+    for i in range(shiftby):
+        
+        bit_0 = res & 0x0000_0001 #get bit 0
+        res = res >> 1            #shift R one bit
+        if(bit_0 == 1):
+            res = res | 0x8000_0000 # set MST to 1
+        #if bit_0 is zero, no need to handle it's already done by pythone
+
+    cpu.r[instr.rd]  = mask32(res)
+     
+    if(instr.set_flags):
+       cpu.N = bool(res & 0x8000_0000)  #if MSB is 1
+       cpu.Z = bool(res == 0) 
+       cpu.C = bool (res & 0x8000_0000) if (not shiftby==0) else cpu.C #change only when shift not zero
+    
+    return
+
+    
+
+
 #helper functino
-def mask32(input):
-    return (input & 0xFFFFFFFF) #return only first 32 bits
+def mask32(val):
+    return (val & 0xFFFFFFFF) #return only first 32 bits
 
 def handleFlags_ADD(cpu: CPU, num1, num2, carry_in=0):
     res = num1 + num2 + carry_in #full result
@@ -264,6 +337,40 @@ def handleFlags_SUB(cpu: CPU, num1, num2, borrow=0):
     cpu.Z = (diff == 0)
     #overflow when num1 and num2 differs in signs and num1 and diff too
     cpu.V = ((num1 & 0x8000_0000) != (num2 & 0x8000_0000)) and ((diff & 0x8000_0000) != (num1 & 0x8000_0000))
+    #handle floag for LSL, LSR
+    
+def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
+    res = mask32(res)
+    cpu.N = bool(res & 0x80000000)     #is negative? 1:0
+    cpu.Z = (res==0)             #is Zero
+   
+   #handling C flag
+   #shift to left
+    if(shiftLeft):
+        if(0<shift<32):
+            cpu.C = bool((num>>(32-shift)) & 1) 
+        elif(shift==32):
+            cpu.C = bool(num&0x01)
+        elif(shift > 32):
+            cpu.C = False;
+    #shifting to Right
+    else:
+        if(0<shift<32):
+            cpu.C = bool((num>>(shift-1)) & 1)
+        elif(shift==32):
+            cpu.C =  bool(num & 0x8000_0000)
+        elif(shift > 32):
+            cpu.C = False
+    #no change when shift =0. cpu.V no need to update
+    
 
+def toSigned32(val):
+    val = val & 0xFFFF_FFFF     #lower 32 bits
+    if(val & 0x8000_0000): #is bit 31  negative
+        val = val - 0x1_0000_0000 #make it negative)
+    return val
+        
+        
+        
         
         

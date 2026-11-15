@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+/*#!/usr/bin/env python3
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
 import sys
 from cpu import CPU
@@ -150,3 +150,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
