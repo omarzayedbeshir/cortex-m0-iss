@@ -5,6 +5,11 @@ from cpu import CPU
 import decoder 
 import re
 import argparse
+import decoder 
+import instruction
+from instruction import INSTRUCTION
+
+cpu = CPU()
 
 MAX_INSTR = 100_000_000
 ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
@@ -177,20 +182,19 @@ def disassemble_text():
     pc, end = rng
     while pc < end:
         hw1 = read_code16(pc)
+        hw2 = None  # in case of having 32-bit instruction 
 
         if (hw1 >> 11) in (0b11101, 0b11110, 0b11111):
             hw2 = read_code16(pc + 2)
             enc = f"{hw1:04x}{hw2:04x}"
-            text = decode32(pc, hw1, hw2)
             size = 4
         else:
             enc = f"{hw1:04x}"
-            text = decode16(pc, hw1)
             size = 2
 
         try:
-            instr = decoder.decode(hw1, hw2)
-            text = decoder.disasm(instr, pc)
+            instruct= decoder.decode(hw1, hw2)
+            text = decoder.disasm(instruct, pc)
         except decoder.DecodeFault as err:
             fault(str(err))
 
@@ -200,7 +204,7 @@ def disassemble_text():
 
 def main():
     # TODO: parse the options in section 6
-    cpu = CPU()
+    
     args = parse_args(sys.argv[1:])
 
 

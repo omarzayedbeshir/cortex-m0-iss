@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """decoder.py -- CSCE 2303 Cortex-M0 Thumb instruction decoder."""
 
-from typing import optional
+from typing import Optional
 from instruction import INSTRUCTION, Op
 
 
@@ -16,7 +16,7 @@ class DecodeFault(Exception):
           
 
 
-def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
+def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
     sp = 13
  
@@ -45,7 +45,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
             else:
                 imm32 = imm25
 
-            return INSTRUCTION(op=type.BL, imm32=imm32, isImm=True) 
+            return INSTRUCTION(op=Op.BL, imm32=imm32, isImm=True) 
 
         else:
             raise DecodeFault("UNDEFINED")
@@ -64,7 +64,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
             imm11 -= 0x800                             # sign-extend 11 bits
         imm32 = imm11 << 1                             # multiply by 2 (imm11:'0')
         
-        return INSTRUCTION(op=Op.B, imm32=imm32)        # match the type name in your handout
+        return INSTRUCTION(op=Op.B, imm32=imm32)        
 
      
 #-------------------------------------------------------------------------------------------
@@ -134,9 +134,9 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
 
 #_-----------_-------------------
 
-    # Ntype 
+    # NOP
     elif (hw & 0xFFFF) == 0xBF00:              
-        return INSTRUCTION(op = Op.Ntype)
+        return INSTRUCTION(op = Op.NOP)
     
 #_--------------------------------
     #MOV Register
@@ -159,7 +159,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         imm8 = (hw >> 0) & 0xFF
         rd =   (hw >> 8) & 7
 
-        return INSTRUCTION(op= Op.MOV, setflags = False, isImm= True, imm32=imm8)
+        return INSTRUCTION(op= Op.MOV, setflags = True, isImm= True, rd = rd, imm32=imm8)
 
 
 
@@ -329,7 +329,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 8) & 0x7          # extract rdn from bits 10-8
 
 
-        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = rdn, rs1 = rdn, imm32 = imm3)
+        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = rdn, rs1 = rdn, imm32 = imm8)
 
 #__________________________
     #SUB register 
@@ -863,7 +863,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         wback = (( registers >> n ) & 1 )== 0
 
 
-        if registers.bit_count() < 1: 
+        if  registers == 0: 
             raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op=Op.LDM, rs1=rn, registers=registers, write_back=wback)
@@ -878,7 +878,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         
         # wback true 
 
-        if registers.bit_count() < 1: 
+        if registers == 0: 
             raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op=Op.STM, rs1=rn, registers=registers, write_back=True)
@@ -895,15 +895,15 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
             registers = register_list
          
         
-        #unalignedAllowed is false
+        
 
-        if registers.bit_count() < 1: 
-            raise DecodeFault ("UNDEFINED")
+        if registers == 0:
+            raise DecodeFault("UNDEFINED")
 
         return INSTRUCTION(op=Op.PUSH, rs1=sp, registers=registers, write_back=True)
 
     # POP
-    elif (hw & 0xFE00) == 0xBC00:      # Ptype <registers>
+    elif (hw & 0xFE00) == 0xBC00:      # POP <registers>
         register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
         P = (hw >> 8) & 0x1                # extract P (PC) from bit 8
 
@@ -917,14 +917,126 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         
         #unalignedAllowed is false
 
-        if registers.bit_count() < 1: 
+        if registers == 0: 
             raise DecodeFault ("UNDEFINED")
 
-        return INSTRUCTION(op=Op.Ptype, rs1=13, registers=registers, write_back=True)
+        return INSTRUCTION(op=Op.POP, rs1=13, registers=registers, write_back=True)
 
     else:
         raise DecodeFault("UNDEFINED")
 
 
+COND_NAMES = ("eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le")
 
+def register(r: int) -> str:
+    if r == 13:
+        return "sp"
+    if r == 14:
+        return "lr"
+    if r == 15:
+        return "pc"
+    return f"r{r}"
+
+def register_list(mask: int) -> str:
+    regs = [register(i) for i in range(16) if (mask >> i) & 1]
+    return "{" + ", ".join(regs) + "}"
+
+def disasm(instr: INSTRUCTION, pc: int) -> str:
+    op = instr.op
+    s = "s" if instr.setflags else ""
+    name = op.value.lower()
+
+    # Moves
+    if op == Op.MOV:
+        if instr.isImm:
+            return f"mov{s}\t{register(instr.rd)}, #{instr.imm32}"
+        return f"mov{s}\t{register(instr.rd)}, {register(instr.rs1)}"
+
+    if op == Op.MVN:
+        return f"mvns\t{register(instr.rd)}, {register(instr.rs1)}"
+
+    # Shifts & Rotates
+    if op in (Op.LSL, Op.LSR, Op.ASR, Op.ROR):
+        if instr.isImm:
+            return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs1)}, #{instr.imm32}"
+        return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs2)}"
+
+    # Add & Subtract
+    if op in (Op.ADD, Op.SUB):
+        if instr.isImm:
+            if instr.rd == instr.rs1:
+                return f"{name}{s}\t{register(instr.rd)}, #{instr.imm32}"
+            return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs1)}, #{instr.imm32}"
+        if instr.rd == instr.rs1:
+            return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs2)}"
+        return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs1)}, {register(instr.rs2)}"
+
+    # Other Arithmetic & Logic
+    if op in (Op.ADC, Op.SBC, Op.AND, Op.ORR, Op.EOR, Op.BIC):
+        return f"{name}s\t{register(instr.rd)}, {register(instr.rs2)}"
+
+    if op == Op.RSB:
+        return f"rsbs\t{register(instr.rd)}, {register(instr.rs1)}, #0"
+
+    if op == Op.MUL:
+        return f"muls\t{register(instr.rd)}, {register(instr.rs1)}"
+
+    # Compare & Test
+    if op in (Op.CMP, Op.CMN, Op.TST):
+        if instr.isImm:
+            return f"{name}\t{register(instr.rs1)}, #{instr.imm32}"
+        return f"{name}\t{register(instr.rs1)}, {register(instr.rs2)}"
+
+    # Extend & Reverse
+    if op in (Op.SXTB, Op.SXTH, Op.UXTB, Op.UXTH, Op.REV):
+        return f"{name}\t{register(instr.rd)}, {register(instr.rs1)}"
+
+    # PC-relative ADR
+    if op == Op.ADR:
+        target = ((pc + 4) & ~3) + instr.imm32
+        return f"adr\t{register(instr.rd)}, {target:x}"
+
+    # Loads & Stores
+    if op in (Op.LDR, Op.LDRB, Op.LDRH, Op.LDRSB, Op.LDRSH, Op.STR, Op.STRB, Op.STRH):
+        if instr.isImm:
+            if instr.rs1 == 15:
+                target = ((pc + 4) & ~3) + instr.imm32
+                return f"ldr\t{register(instr.rt)}, [pc, #{instr.imm32}]\t@ ({target:x})"
+            if instr.imm32 == 0:
+                return f"{name}\t{register(instr.rt)}, [{register(instr.rs1)}]"
+            return f"{name}\t{register(instr.rt)}, [{register(instr.rs1)}, #{instr.imm32}]"
+        return f"{name}\t{register(instr.rt)}, [{register(instr.rs1)}, {register(instr.rs2)}]"
+
+    # Multiple Register Transfers
+    if op in (Op.PUSH, Op.POP):
+        return f"{name}\t{register_list(instr.registers)}"
+
+    if op == Op.LDM:
+        wb = "!" if instr.write_back else ""
+        return f"ldm\t{register(instr.rs1)}{wb}, {register_list(instr.registers)}"
+
+    if op == Op.STM:
+        return f"stm\t{register(instr.rs1)}!, {register_list(instr.registers)}"
+
+    # Branches & System
+    if op == Op.B:
+        target = (pc + 4) + instr.imm32
+        if instr.condition is not None:
+            return f"b{COND_NAMES[instr.condition]}.n\t{target:x}"
+        return f"b.n\t{target:x}"
+
+    if op == Op.BL:
+        target = (pc + 4) + instr.imm32
+        return f"bl\t{target:x}"
+
+    if op in (Op.BX, Op.BLX):
+        return f"{name}\t{register(instr.rs1)}"
+
+    if op == Op.SVC:
+        return f"svc\t{instr.n}"
+
+    if op == Op.NOP:
+        return "nop"
+
+    return f"<unknown {op}>"
 
