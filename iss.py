@@ -188,6 +188,13 @@ def disassemble_text():
             text = decode16(pc, hw1)
             size = 2
 
+        try:
+            instr = decoder.decode(hw1, hw2)
+            text = decoder.disasm(instr, pc)
+        except decoder.DecodeFault as err:
+            fault(str(err))
+
+        
         print(f"{pc:08x}: {enc} {text}")
         pc += size
 

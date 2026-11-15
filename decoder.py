@@ -105,7 +105,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
 
         
         if ((hw & 0x7) != 0 ) or rm == 15:         
-            raise DecodeFault ("UNPREDICTABLE")
+            raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op = Op.BX, rs1 = rm)
 
@@ -117,7 +117,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         
        
         if (hw & 0x7) != 0 or rm == 15:         
-            raise DecodeFault("UNPREDICTABLE")
+            raise DecodeFault("UNDEFINED")
 
         return INSTRUCTION(op= Op.BLX, rs1= rm )
 
@@ -274,7 +274,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
 
 
         if d == 15 and rm == 15:
-            raise DecodeFault("UNPREDICTABLE")
+            raise DecodeFault("UNDEFINED")
 
 
         return INSTRUCTION(op=Op.ADD, rd=d, rs1=d, rs2=rm, isImm=False, setflags=False)
@@ -560,10 +560,10 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         n = (N << 3) | rn          # n = N:rn
 
         if n < 8 and rm < 8:
-            raise DecodeFault("UNPREDICTABLE")
+            raise DecodeFault("UNDEFINED")
 
         if n == 15 and rm == 15:
-            raise DecodeFault("UNPREDICTABLE")
+            raise DecodeFault("UNDEFINED")
      
         return INSTRUCTION(op = Op.CMP, setflags = True, rs1 = n, rs2 = rm)
 
@@ -864,7 +864,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
 
 
         if registers.bit_count() < 1: 
-            raise DecodeFault ("UNPREDICTABLE")
+            raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op=Op.LDM, rs1=rn, registers=registers, write_back=wback)
 
@@ -879,7 +879,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         # wback true 
 
         if registers.bit_count() < 1: 
-            raise DecodeFault ("UNPREDICTABLE")
+            raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op=Op.STM, rs1=rn, registers=registers, write_back=True)
 
@@ -898,7 +898,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         #unalignedAllowed is false
 
         if registers.bit_count() < 1: 
-            raise DecodeFault ("UNPREDICTABLE")
+            raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op=Op.PUSH, rs1=sp, registers=registers, write_back=True)
 
@@ -918,9 +918,13 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
         #unalignedAllowed is false
 
         if registers.bit_count() < 1: 
-            raise DecodeFault ("UNPREDICTABLE")
+            raise DecodeFault ("UNDEFINED")
 
         return INSTRUCTION(op=Op.Ptype, rs1=13, registers=registers, write_back=True)
 
     else:
         raise DecodeFault("UNDEFINED")
+
+
+
+
