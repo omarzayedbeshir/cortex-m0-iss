@@ -1,0 +1,24 @@
+
+Hex dump of section '.vectors':
+  0x00000000 00000420 01010000                   ... ....
+
+
+Hex dump of section '.text':
+  0x00000100 174811df 00240025 002614df 002813db .H...$.%.&...(..
+  0x00000110 0a2811d0 3028f8d3 392809d9 4128f4d3 .(..0(..9(..A(..
+  0x00000120 5a2807d9 6128f0d3 7a28eed8 0135ece7 Z(..a(..z(...5..
+  0x00000130 0136eae7 0134e8e7 0a4811df 200012df .6...4...H.. ...
+  0x00000140 094811df 094811df 280012df 064811df .H...H..(....H..
+  0x00000150 074811df 300012df 034811df 002000df .H..0....H... ..
+  0x00000160 74010000 85010000 b6010000 99010000 t...............
+  0x00000170 ad010000                            ....
+
+
+Hex dump of section '.rodata':
+  0x00000174 456e7465 72206120 73747269 6e673a20 Enter a string: 
+  0x00000184 00557070 65726361 7365206c 65747465 .Uppercase lette
+  0x00000194 72733a20 004c6f77 65726361 7365206c rs: .Lowercase l
+  0x000001a4 65747465 72733a20 00446967 6974733a etters: .Digits:
+  0x000001b4 20000a00                             ...
+
+readelf: Warning: Section '.data' was not dumped because it does not exist
