@@ -1,36 +1,60 @@
-from calendar import setfirstweekday
-from os import cpu_count
-from tkinter.tix import InputOnly
-from xml.etree.ElementTree import tostring
 from instruction import INSTRUCTION
 from cpu import CPU 
 
-                #-------------------------------------------------------------------------#
-                #This ALU is done by @BawahabYousefOmar For CSCE Assymbly course in AUC   |
-                #Assume CPU registers always contain unsigned 32-bit values               |
-                #                                                                         |
-                #-------------------------------------------------------------------------#   
+
+#-------------------------------------------------------------------------#
+      #This ALU is done by @BawahabYousefOmar For CSCE Assymbly course in AUC 
+      #  
+      #Assume CPU registers always contain unsigned 32-bit values 
+      #              
+      #Sign depends on the operation, and each instruction updates only 
+      #the flags when specified by ARM   
+      #
+      #immediate LSR and ASR encode a shift of 32 using a zero immediate 
+      #field.Decoder should give 32, not zero
+      #
+      #The offset must  be sign-extended and scaled appropriately by 
+      #the decoder.                                                             |
+      #-------------------------------------------------------------------------#   
     
-def execute ( instr: INSTRUCTION, cpu: CPU):
+#temporary class exceptoin
+
+class AlUExceptoin(Exception):
+        pass
+      
+def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
   
   #denitfy the instructin type
   match instr.type:
       case "ADD"  : ADD(instr, cpu)
       case "ADC"  : ADC(instr, cpu)
       case "SUB"  : SUB(instr, cpu)
+      case "SBC"  : SBC(instr, cpu)
       case "RSB"  : RSB(instr, cpu)
+      case "CMP"  : CMP(instr, cpu)
+      case "CMN"  : CMN(instr, cpu)
       case "MUL"  : MUL(instr, cpu)
       case "AND"  : AND(instr, cpu)
       case "ORR"  : ORR(instr, cpu)
       case "EOR"  : EOR(instr, cpu)
-  return 
+      case "BIC"  : BIC(instr, cpu)
+      case "TST"  : TST(instr, cpu)
+      case "LSL"  : LSL(instr, cpu)
+      case "LSR"  : LSR(instr, cpu)
+      case "ASR"  : ASR(instr, cpu)
+      case "ROR"  : ROR(instr, cpu)
+      case "B"    : nxt = B(instr, cpu, nxt)
+      case "BL"   : nxt = BL(instr, cpu, nxt)
+      
+      
+  return nxt
 
 
 def ADD( instr: INSTRUCTION, cpu: CPU):
      input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
-     #check if second register is just an imm
+     #check if second register is just an imm32
      if(instr.isImm): 
-         input_2 = mask32(instr.imm)
+         input_2 = mask32(instr.imm32)
      else:
          input_2 = mask32(cpu.r[instr.rs2])
       
@@ -39,7 +63,7 @@ def ADD( instr: INSTRUCTION, cpu: CPU):
      cpu.r[instr.rd] = mask32(res)
      #if flags should changed in case ADDS
      if( instr.set_flags):
-        handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C))
+        handleFlags_ADD(cpu, input_1, input_2)
      
      return 
 def ADC( instr: INSTRUCTION, cpu: CPU):
@@ -56,12 +80,11 @@ def ADC( instr: INSTRUCTION, cpu: CPU):
         handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C)) 
      
      return 
-
 def SUB( instr: INSTRUCTION, cpu: CPU):
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
-        #check if second register is just an imm
+        #check if second register is just an imm32
         if(instr.isImm): 
-            input_2 = mask32(instr.imm)
+            input_2 = mask32(instr.imm32)
         else:
             input_2 = mask32(cpu.r[instr.rs2])
             
@@ -73,6 +96,7 @@ def SUB( instr: INSTRUCTION, cpu: CPU):
             
         return 
  #SBCS r0, r1     no immdiate   
+#SBCS r0, r1     no immdiate 
 def SBC( instr: INSTRUCTION, cpu: CPU):
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
         #not immdiate
@@ -94,10 +118,33 @@ def RSB(instr: INSTRUCTION, cpu: CPU):
      
      cpu.r[instr.rd] = mask32(res)  
      
+     #update flag always
      handleFlags_SUB(cpu, 0, input_1)
          
      return 
  #            
+#CMP R0, R1
+def CMP( instr: INSTRUCTION, cpu: CPU):
+        input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
+        #check if second register is just an imm32
+        if(instr.isImm): 
+            input_2 = mask32(instr.imm32)
+        else:
+            input_2 = mask32(cpu.r[instr.rs2])
+        #Update flags     
+        handleFlags_SUB(cpu, input_1, input_2)
+            
+        return 
+ 
+#CMN R0, R1, no immdiate expected
+def CMN( instr: INSTRUCTION, cpu: CPU):
+     input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
+     #check if second register is just an imm32
+     input_2 = mask32(cpu.r[instr.rs2])
+     #update flag always
+     handleFlags_ADD(cpu, input_1, input_2)
+     
+     return   
 
 #MULS r0, r1
 def MUL(instr: INSTRUCTION, cpu: CPU):
@@ -224,7 +271,7 @@ def LSL(instr: INSTRUCTION, cpu: CPU):
     input_1 = cpu.r[instr.rs1]
     
     if(instr.isImm):
-        shiftby = instr.imm 
+        shiftby = instr.imm32 
     else:
         shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
     
@@ -242,7 +289,7 @@ def LSR(instr: INSTRUCTION, cpu: CPU):
     input_1 = cpu.r[instr.rs1]
     
     if(instr.isImm):
-        shiftby = instr.imm         #imm have the decoded shift amount like LSR r0, r1, #32
+        shiftby = instr.imm32         #imm32 have the decoded shift amount like LSR r0, r1, #32
     else:
         shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
     
@@ -259,7 +306,7 @@ def ASR(instr: INSTRUCTION, cpu: CPU):
     input_1 = cpu.r[instr.rs1]  #assuming input_1 stored as unsigned integer 
     
     if(instr.isImm):
-        shiftby = instr.imm       
+        shiftby = instr.imm32       
     else:
         shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
     
@@ -312,13 +359,104 @@ def ROR(instr: INSTRUCTION, cpu: CPU):
     
     return
 
+
+#----------------------------------- BRANCH ------------------------------------
+def B(instr: INSTRUCTION, cpu: CPU, nxt):
+    #cpu.r[15] have the current address
     
+    jump = False;
+    if(instr.condition==0b0000): #BEQ : Equal?
+        if(cpu.Z==True):
+            jump = True;
+    elif(instr.condition==0b0001): #BNE : not equal
+        if(cpu.Z==False):
+            jump = True
+    elif(instr.condition==0b0010): #BCS/BHS : Carry set / Unsigned >=
+        if(cpu.C==True):
+            jump = True
+    elif(instr.condition==0b0011): #BCC/BLO : Carry clear / Unsigned <
+        if(cpu.C==False):
+            jump = True
+    elif(instr.condition==0b0100): #BMI :  Negative
+        if(cpu.N==True):
+            jump = True
+    elif(instr.condition==0b0101): #BPL : Positive or zero
+        if(cpu.N==False):
+            jump = True       
+    elif(instr.condition==0b0110): #BVS : Overflow set
+        if(cpu.V==True):
+            jump = True       
+    elif(instr.condition==0b0111): #BVC : Overflow clear
+        if(cpu.V==False):
+            jump = True
+    elif(instr.condition==0b1000): #BHI: unsigned >
+        if(cpu.C and not cpu.Z):
+            jump = True
+    elif(instr.condition==0b1001): #BLS: unsigned <=
+        if(not cpu.C or cpu.Z):
+            jump = True
+    elif(instr.condition==0b1010): #BGE: signed >=
+        if(cpu.N == cpu.V):
+            jump = True
+    elif(instr.condition==0b1011): #BLT: signed <
+        if(cpu.N != cpu.V):
+            jump = True
+    elif(instr.condition==0b1100): #BGT: signed >
+        if((cpu.V == cpu.N) and not cpu.Z):
+            jump = True
+    elif(instr.condition==0b1101): #BLE: signed <=
+        if((cpu.V != cpu.N) or  cpu.Z):
+            jump = True
+    elif(instr.condition is None):
+        jump = True     #uncoditional B
+    #else
+    #ERROR CONDITION NOT FOUND    
+    if(jump):
+        nxt =mask32(cpu.r[15]+ instr.imm32 + 4)     #nxt PC
+    #if branch not taken, no change
+
+        
+    return nxt
+
+def BL(instr: INSTRUCTION, cpu: CPU, nxt):
+    #set the return address, bit0 is set, convention and indicator of thumb state
+    #LR ar cpu.r[14] = (current Address(PC) + 4) | 1
+    cpu.r[14] = mask32((cpu.r[15]+ 4) | 1)
+    
+    #nxt
+    nxt = mask32(cpu.r[15] + 4 + instr.imm32) #next instruction address
+   
+    return nxt
+   
+def BX(instr: INSTRUCTION, cpu: CPU, nxt):
+    addrs = cpu.r[instr.rs1]
+    if(addrs & 0x0000_0001):#LSB is 1, state Thumb
+        nxt = mask32(addrs &0xFFFF_FFFE)    #set bit_0 to 0
+    else: #ERROR, LR indicates different state, not handled
+         raise AlUExceptoin("INVSTATE")  
+    
+    return nxt
+    
+def BLX(instr: INSTRUCTION, cpu: CPU, nxt):
+    addrs = cpu.r[instr.rs1]    #address of next instruction
+    if(addrs & 0x0000_0001):#LSB is 1, state Thumb
+        nxt = mask32(addrs &0xFFFF_FFFE)    #set bit_0 to 0
+    else:#EXCEPTION
+        raise AlUExceptoin("INVSTATE")
+    #LR at cpu.r[14] = (current Address(PC) + 2) | 1
+    cpu.r[14] = mask32((cpu.r[15]+ 2) | 1)  #return address
+    
+    return nxt
 
 
 #helper functino
 def mask32(val):
     return (val & 0xFFFFFFFF) #return only first 32 bits
-
+def toSigned32(val):
+    val = val & 0xFFFF_FFFF     #lower 32 bits
+    if(val & 0x8000_0000): #is bit 31  negative
+        val = val - 0x1_0000_0000 #make it negative)
+    return val
 def handleFlags_ADD(cpu: CPU, num1, num2, carry_in=0):
     res = num1 + num2 + carry_in #full result
     cpu.C = (res>0xFFFFFFFF)     #unsigned overflow, num out of range
@@ -328,17 +466,17 @@ def handleFlags_ADD(cpu: CPU, num1, num2, carry_in=0):
     # overflow when both same signs and res is different sign
     cpu.V = ((num1 & 0x80000000)==(num2 & 0x80000000)) and ((res & 0x80000000)!=(num1 & 0x80000000))
     return
-        
 def handleFlags_SUB(cpu: CPU, num1, num2, borrow=0):
     diff = num1 - num2 - borrow
     cpu.C = bool(num1 >= (num2 + borrow)) #no borrow = 1, borrow = 0
     diff = mask32(diff)
     cpu.N = bool(diff & 0x8000_0000)
     cpu.Z = (diff == 0)
-    #overflow when num1 and num2 differs in signs and num1 and diff too
-    cpu.V = ((num1 & 0x8000_0000) != (num2 & 0x8000_0000)) and ((diff & 0x8000_0000) != (num1 & 0x8000_0000))
-    #handle floag for LSL, LSR
+    #unsign to signed
+    signed_diff = toSigned32(num1) - toSigned32(num2) - borrow
+    cpu.V = (signed_diff < -0x8000_0000) or (signed_diff > 0x7FFF_FFFF)
     
+ #handle floag for LSL, LSR    
 def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
     res = mask32(res)
     cpu.N = bool(res & 0x80000000)     #is negative? 1:0
@@ -362,14 +500,72 @@ def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
         elif(shift > 32):
             cpu.C = False
     #no change when shift =0. cpu.V no need to update
-    
 
-def toSigned32(val):
-    val = val & 0xFFFF_FFFF     #lower 32 bits
-    if(val & 0x8000_0000): #is bit 31  negative
-        val = val - 0x1_0000_0000 #make it negative)
-    return val
         
+
+
+# ## enum to determine the type of operation will be performed in execution. 
+# class Op(str, Enum):
+
+#     MOV = "MOV"         # MOVS #imm8, MOV reg, MOVS reg (LSLS #0)
+#     MVN = "MVN"         # MVNS Rd, Rm
+
+#     # Arithmetic
+#     ADD = "ADD"         # ADDS imm3/imm8/reg, ADD high/SP+reg/SP+imm7/SP+imm8
+#     ADR = "ADR"         # ADR Rd, label (Align(PC + 4, 4) + imm32)
+#     ADC = "ADC"         # ADCS Rdn, Rm
+#     SUB = "SUB"         # SUBS imm3/imm8/reg, SUB SP-imm7
+#     SBC = "SBC"         # SBCS Rdn, Rm
+#     RSB = "RSB"         # RSBS Rd, Rn, #0
+#     MUL = "MUL"         # MULS Rdm, Rn, Rdm
+
+#     # Logic & Shifts
+#     AND = "AND"         # ANDS Rdn, Rm
+#     ORR = "ORR"         # ORRS Rdn, Rm
+#     EOR = "EOR"         # EORS Rdn, Rm
+#     BIC = "BIC"         # BICS Rdn, Rm
+#     TST = "TST"         # TST Rn, Rm
+#     LSL = "LSL"         # LSLS imm5, LSLS reg
+#     LSR = "LSR"         # LSRS imm5, LSRS reg
+#     ASR = "ASR"         # ASRS imm5, ASRS reg
+#     ROR = "ROR"         # RORS Rdn, Rm
+
+#     # Compare
+#     CMP = "CMP"         # CMP #imm8, CMP reg (low & high)
+#     CMN = "CMN"         # CMN Rn, Rm
+
+#     # Extend & Reverse
+#     SXTB = "SXTB"       # SXTB Rd, Rm
+#     SXTH = "SXTH"       # SXTH Rd, Rm
+#     UXTB = "UXTB"       # UXTB Rd, Rm
+#     UXTH = "UXTH"       # UXTH Rd, Rm
+#     REV = "REV"         # REV Rd, Rm
+
+#     # Load & Store
+#     LDR = "LDR"         # LDR imm5, LDR [SP, #imm8], LDR reg, LDR literal [PC, #imm8]
+#     LDRB = "LDRB"       # LDRB imm5, LDRB reg
+#     LDRH = "LDRH"       # LDRH imm5, LDRH reg
+#     LDRSB = "LDRSB"     # LDRSB reg
+#     LDRSH = "LDRSH"     # LDRSH reg
+#     STR = "STR"         # STR imm5, STR [SP, #imm8], STR reg
+#     STRB = "STRB"       # STRB imm5, STRB reg
+#     STRH = "STRH"       # STRH imm5, STRH reg
+
+#     # Multiple
+#     LDM = "LDM"         # LDM Rn{!}, <registers>
+#     STM = "STM"         # STM Rn!, <registers>
+#     PUSH = "PUSH"       # PUSH <registers>
+#     POP = "POP"         # POP <registers>
+
+#     # Control & System
+#     B = "B"             # B label (condition=None) and B<c> label (condition=0..13)
+#     BL = "BL"           # BL label (32-bit, size=4)
+#     BX = "BX"           # BX Rm
+#     BLX = "BLX"         # BLX Rm
+#     SVC = "SVC"         # SVC #imm8
+
+#             # NOP
+#     NOP = "NOP"
         
         
         
