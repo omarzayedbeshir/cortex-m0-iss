@@ -111,7 +111,7 @@ def step():
     pc = r[15]
     hw = read_mem(pc, 2)
     nxt = pc + 2
-
+    hw2 = None
     if (hw >> 11) in (0b11101, 0b11110, 0b11111):  # first half of a 32-bit instruction
         hw2 = read_mem(pc + 2, 2)
         nxt = pc + 4

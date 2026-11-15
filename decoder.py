@@ -7,11 +7,15 @@ from enum import Enum
 
 
 
+
+
 class DecodeFault(Exception):
     
     pass
 
+# enum to determine the type of operation will be performed in execution. 
 class Op(str, Enum):
+
     MOV = "MOV"         # MOVS #imm8, MOV reg, MOVS reg (LSLS #0)
     MVN = "MVN"         # MVNS Rd, Rm
 
@@ -68,7 +72,12 @@ class Op(str, Enum):
     BX = "BX"           # BX Rm
     BLX = "BLX"         # BLX Rm
     SVC = "SVC"         # SVC #imm8
-    NOP = "NOP"         # NOP
+
+            # NOP
+    NOP = "NOP"         
+
+
+
 
 @dataclass
 class INSTRUCTION:
@@ -81,17 +90,24 @@ class INSTRUCTION:
     imm32: Optional[int] = None      # Decoded (sign- or zero-extended) immediate
     isImm: bool = False
     condition: Optional[int] = None       # 4-bit condition code for B<c>
+
     registers: Optional[int] = None  # 16-bit register bitmask for LDM/STM/PUSH/POP
     write_back: bool = False              # Write-back flag for LDM/STM/PUSH/POP
-    setflags: bool = False           # True if instruction updates APSR flags
+    index: bool = True 
+    add: bool = True 
+
+
+                # True if instruction updates APSR flags
+    setflags: bool = False           
 
 
 def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
-
+    sp = 13
  
                               # TODO: BL, from hw and hw2
-    if (hw & 0xF800) == 0xF000 and (hw2 & 0xD000) == 0xD000:   # BL <label>
+    if (hw2 != None):
+        if (hw & 0xF800) == 0xF000 and (hw2 & 0xD000) == 0xD000:   # BL <label>
             S = (hw >> 10) & 0x1               # extract S from hw bit 10
             imm10 = (hw >> 0) & 0x3FF          # extract imm10 from hw bits 9-0
             J1 = (hw2 >> 13) & 0x1             # extract J1 from hw2 bit 13
@@ -110,96 +126,143 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
             # Sign-extend from 25 bits to 32 bits
             if S == 1:
-                imm32 = imm25 - (1 << 25)  # subtract 2^25 (0x2000000) if negative
+                imm32 = imm25 - (1 << 25)  # 
             else:
                 imm32 = imm25
 
-                        # return 
-    else:
+            return INSTRUCTION(op=Op.BL, imm32=imm32, isImm=True) 
+
+        else:
             raise DecodeFault("UNDEFINED")
 
 
-    if (hw & 0xF800) == 0x2000:                     # MOVS Rd, #imm8
-        rd = (hw >> 8) & 7
+     
         
-        #.........
-    elif (hw & 0xF800) == 0xE000:                     # B label (unconditional)
+        
+
+
+    #-----------------------------
+    # B label (unconditional)
+    if (hw & 0xF800) == 0xE000:                     
         imm11 = hw & 0x7FF
         if imm11 & 0x400:
             imm11 -= 0x800                             # sign-extend 11 bits
         imm32 = imm11 << 1                             # multiply by 2 (imm11:'0')
         
-        #return Instruction(op="B", imm32=imm32)        # match the op name in your handout
+        return INSTRUCTION(op=Op.B, imm32=imm32)        # match the op name in your handout
 
-    elif (hw & 0xFF00) == 0xDF00:                     # SVC #imm8
-        # call svc(hw & 0xFF)
-        pass
-    # TODO: the other instructions in section 4 of the handout
+     
+#-------------------------------------------------------------------------------------------
 
     # B label conditional 
     # imm8
-    elif (hw & 0xF000) == 0xD000:              # B<c> <label>
+
+      # B<c> <label>
+    elif (hw & 0xF000) == 0xD000:            
         imm8 = (hw >> 0) & 0xFF                # extract imm8 from bits 7-0
         cond = (hw >> 8) & 0xF                 # extract cond from bits 11-8
 
-        # Validate structure before creating Instruction object
-        if cond == 0xE:                        # cond == '1110' -> UNDEFINED (UDF)
+        
+   
+        if cond == 0xE:                        # cond == '1110'  UNDEFINED 
             raise DecodeFault("UNDEFINED")
 
         if cond == 0xF: 
-            # instruc svc(hw & 0xFF)
-            pass 
+            
+            return INSTRUCTION(op=Op.SVC, n=imm8) # set n for service calling
+             
         # SignExtend(imm8:'0', 32)
         if imm8 & 0x80:     # signed
-            imm32 = (imm8 - 0x100) << 1 #
+            imm32 = (imm8 - 0x100) << 1 
         else:
             imm32 = imm8 << 1   
 
-        # ret inst
+        return INSTRUCTION(op= Op.B, isImm=True, imm32=imm32,condition =cond )
     
     
 #------------------------------------------
 
 # BX 
-
-    elif (hw & 0xFF80) == 0x4700:              # BX <Rm>
+    # BX <Rm>
+    elif (hw & 0xFF80) == 0x4700:              
         rm = (hw >> 3) & 0xF                   # extract rm from bits 6-3 (4-bit register)
-        m = rm
+        
 
-        # Validate structure before creating Instruction object
-        if ((hw & 0x7) != 0 ) or m == 15:         # bits [2:0] != '000' or m == 15 -> UNPREDICTABLE
+        
+        if ((hw & 0x7) != 0 ) or rm == 15:         
             raise DecodeFault ("UNPREDICTABLE")
 
-        # instruc...
+        return INSTRUCTION(op = Op.BX, rs1 = rm)
 
 # BLX register 
-    elif (hw & 0xFF80) == 0x4780:              # BLX <Rm>
-        rm = (hw >> 3) & 0xF                   # extract rm from bits 6-3 (4-bit register)
-        m = rm
 
-        # Validate structure before creating Instruction object
-        if (hw & 0x7) != 0 or m == 15:         # bits [2:0] != '000' or m == 15 -> UNPREDICTABLE
+    # BLX <Rm>
+    elif (hw & 0xFF80) == 0x4780:              
+        rm = (hw >> 3) & 0xF                   # extract rm from bits 6-3 (4-bit register)
+        
+       
+        if (hw & 0x7) != 0 or rm == 15:         
             raise DecodeFault("UNPREDICTABLE")
 
-        #............
+        return INSTRUCTION(op= Op.BLX, rs1= rm )
+
+
+
+#-----------------------------------
+        # SVC #imm8
+    elif (hw & 0xFF00) == 0xDF00:                    
+        imm8 = hw & 0x00FF
+
+        return INSTRUCTION(op = Op.SVC, n = imm8)
+
 
 
 #_-----------_-------------------
 
     # NOP 
     elif (hw & 0xFFFF) == 0xBF00:              
-        pass
+        return INSTRUCTION(op = Op.NOP)
     
 #_--------------------------------
+    #MOV Register
+
+
     #MVN
+
+    # MVNS <Rd>,<Rm>
+
     elif (hw & 0xFFC0) == 0x43C0:
        # MVN Rd, Rm
         rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
         
-        #set flags true
-        # .......
+        
+        return INSTRUCTION(op = Op.MVN, setflags= True, rd = rd, rs1=rm)
+    
+    # MOVS Rd, #imm8
+    if (hw & 0xF800) == 0x2000:     
+        imm8 = (hw >> 0) & 0xFF
+        rd =   (hw >> 8) & 7
 
+        return INSTRUCTION(op= Op.MOV, setflags = False, isImm= True, imm32=imm8)
+
+
+
+    # MOV <Rd>,<Rm> (high/all registers)
+    elif (hw & 0xFF00) == 0x4600:                  
+        rd_low = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0xF
+        D = (hw >> 7) & 0x1
+        rd = (D << 3) | rd_low
+
+        return INSTRUCTION(op=Op.MOV, rd=rd, rs1=rm, isImm=False, setflags=False)
+
+   
+    # MOVS <Rd>,<Rm> ( low registers, updates N and Z)
+    elif (hw & 0xFFC0) == 0x0000:                 
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        return INSTRUCTION(op=Op.MOV, rd=rd, rs1=rm, isImm=False, setflags=True)
     
 # Arithmetic instructins: 
 #------------------------------
@@ -210,8 +273,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.....
+        return INSTRUCTION(op= Op.ADD, setflags=True,  rd = rdn, rs1= rdn, rs2 = rm )
 
 #------------------------------
     #ADD immediate
@@ -223,8 +285,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm3 = (hw >> 6) & 0x7      # extract imm3 from bits 8-6
         
         
-        # set flags true
-        #.....
+        return INSTRUCTION(op= Op.ADD, setflags=True,isImm= True,   rd = rd, rs1= rn, imm32 = imm3)
 
 
     #ADDS <Rdn>,#<imm8>
@@ -232,8 +293,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm8  = (hw >> 0) & 0xFF       # extract imm8 from bits 7-0
         rdn = (hw >> 8) & 0x7          # extract rdn from bits 10-8
 
-        # set flags true
-        #.....
+        return INSTRUCTION(op= Op.ADD, setflags=True, isImm= True, rd = rdn, rs1= rdn, imm32= imm8 )
 
 #-----------------------------
 
@@ -247,13 +307,16 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
     #ADD SP,<Rm>
     elif (hw & 0xFF87) == 0x4485:
         rm = (hw >> 3) & 0x000F        # extract rm from bits 3-6
-        d = 13
-        if (rm == 0b1101): 
-            raise DecodeFault("UNPREDICTABLE")
+        
+        if (rm == 0b1101): # 01000100 1 1101 101
+            rdm = 0b101
+            dm = 1
+            d = (dm << 3) | rdm        # d = dm:rdm
+            
+            return INSTRUCTION(op=Op.ADD, rd=d, rs1=sp, rs2=d)
         
 
-        # set flags false
-        #.........
+        return INSTRUCTION(op= Op.ADD,rd = sp, rs1  =sp, rs2= rm)
 
 
     #ADD <Rdm>, SP, <Rdm>
@@ -261,10 +324,11 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdm = (hw >> 0) & 0x7        # extract rdm from bits 2-0
         dm = (hw >> 7) & 0x1        # extract dm from bit 7
         d = (dm << 3) | rdm        # d = dm:rdm
-        m = (dm << 3) | rdm        # m = dm:rdm
+        
 
-        # set flags false
-        #.........
+
+
+        return INSTRUCTION(op=Op.ADD, rd=d, rs1=sp, rs2=d)
         
     
 
@@ -277,8 +341,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
         rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
 
-        # set flags true
-        #.....
+        return INSTRUCTION(op =Op.ADD, setflags= True, rd = rd, rs1 = rn, rs2= rm)
 
     #ADD <Rdn>,<Rm>
     elif (hw & 0xFF00) == 0x4400:
@@ -288,12 +351,18 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         d =  (dn << 3) | rdn        # d dn:rdn
 
         
-        if d == 0b1101 or rm == 0b1101:
-            #ADD (SP + register) operation
-            pass
+        if rm == 0b1101: # ADD <Rdm>, SP, <Rdm>
+            return INSTRUCTION(op=Op.ADD, rd=d, rs1=13, rs2=d)
+           
+        if d == 0b1101:                 # ADD SP, <Rm> 
+            return INSTRUCTION(op=Op.ADD, rd=sp, rs1=sp, rs2=rm)
 
-        elif d == 15 and rm == 15:
+
+        if d == 15 and rm == 15:
             raise DecodeFault("UNPREDICTABLE")
+
+
+        return INSTRUCTION(op=Op.ADD, rd=d, rs1=d, rs2=rm, isImm=False, setflags=False)
 #_________________________
 
     #ADD (SP + immediate )
@@ -304,17 +373,16 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rd = (hw >> 8) & 0x7        # extract rd from bits 10-8
         imm32 = imm8 << 2              # imm32 = imm8 * 4
 
-        # flags false
-        #..........
+        
+        return INSTRUCTION(op=Op.ADD, setflags= False, rd = rd, rs1= sp, isImm= True, imm32 = imm32)
         
     #ADD SP,SP,#<imm7>
     elif (hw & 0xFF80) == 0xB000:
         imm7 = (hw >> 0) & 0x007F        # extract imm7 from bits 6-0
         imm32 = imm7 << 2              # imm32 = imm7 * 4 , zero extension imm7:00,32
-        d = 13
+        
     
-        # set flags false
-        #........
+        return INSTRUCTION(op=Op.ADD, setflags= True, rd= sp, rs1 = sp ,isImm= True, imm32= imm32)
 
 #__________________________
     #ADR 
@@ -324,9 +392,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rd = (hw >> 8) & 0x0007        # extract rd from bits 10-8
         imm32 = imm8 << 2              # imm32 = imm8 * 4, zero extension imm8:00, 32
 
-        # set flags false
-        # add true
-        #........
+        return INSTRUCTION(op= Op.ADR,isImm=True, imm32= imm32, rd = rd )
 
 
 #__________________________
@@ -339,8 +405,8 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm3 = (hw >> 6) & 0x7      # extract imm3 from bits 8-6
 
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = rd, rs1 = rn, imm32 = imm3)
+
 
     #SUBS <Rdn>,#<imm8> 
     elif (hw & 0xF800) == 0x3800:
@@ -348,8 +414,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 8) & 0x7          # extract rdn from bits 10-8
 
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = rdn, rs1 = rdn, imm32 = imm3)
 
 #__________________________
     #SUB register 
@@ -362,8 +427,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
 
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.SUB, setflags = True,  rd = rd, rs1 = rn, rs2= rm)
 
 #__________________________
     #SUB (SP - immediate)
@@ -372,11 +436,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
     elif (hw& 0xFF80) == 0xB080:
         imm7 = (hw >> 0) & 0x007F        # extract imm7 from bits 6-0
         imm32 = imm7 << 2              # imm32 = imm7 * 4 , zero extension imm7:00,32
-        d = 13
+        
 
 
-        # set flags false
-        #.......
+        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = sp, rs1 = sp, imm32 = imm3)
 
 
     #__________________________
@@ -389,8 +452,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.SBC, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
 
     
 #__________________________
@@ -402,8 +464,9 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
         imm32 = 0                   # immediate = 0
 
-        # set flags true
-        #.......
+      
+
+        return INSTRUCTION(op = Op.RSB, setflags = True, isImm=True, rd = rd, rs1 = rn, imm32 = imm3)
 
 
 
@@ -417,13 +480,20 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
   
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.MUL, setflags = True,  rd = rdm, rs1 = rn, rs2 = rdm)
+
+
+
+
 
 #__________________________
 
 # Logic and shifts: 
 #__________________________
+
+
+
+
 
     #AND register 
 
@@ -433,8 +503,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
 
-        # set flags true
-        #....... 
+        return INSTRUCTION(op = Op.AND, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
 
 
 #__________________________
@@ -445,8 +514,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.ORR, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
     
 #__________________________
     #EOR register
@@ -456,8 +524,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.EOR, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
  
 #__________________________
     #BIC register 
@@ -467,8 +534,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.BIC, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
     
 #__________________________
     #TST register 
@@ -478,8 +544,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.TST, setflags = True, rs1 = rn, rs2 = rm)
     
 
 #__________________________
@@ -490,9 +555,20 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.LSL, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)  
 
+
+    #LSL immediate
+
+
+     # LSLS <Rd>,<Rm>,#<imm5> (or MOVS <Rd>,<Rm>)
+    elif (hw & 0xF800) == 0x0000:                 
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        imm5 = (hw >> 6) & 0x1F
+        if imm5 == 0:                              # ARMv6-M: imm5 == 0 encodes MOVS Rd, Rm (C unchanged)
+            return INSTRUCTION(op=Op.MOV, rd=rd, rs1=rm, isImm=False, setflags=True)
+        return INSTRUCTION(op=Op.LSL, rd=rd, rs1=rm, imm32=imm5, isImm=True, setflags=True)
 
 #__________________________
     #LSR register 
@@ -502,9 +578,20 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.LSR, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
+        
 
+    #LSR immediate
+
+     # LSRS <Rd>,<Rm>,#<imm5>
+    elif (hw & 0xF800) == 0x0800:                 
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        imm5 = (hw >> 6) & 0x1F
+        
+        if imm5 == 0:                              # 0 encodes a shift of 32
+            imm5 = 32
+        return INSTRUCTION(op=Op.LSR, rd=rd, rs1=rm, imm32=imm5, isImm=True, setflags=True)
 #__________________________
     #ASR register 
     
@@ -513,8 +600,20 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.ASR, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
+
+
+    #ASR immediate 
+     # ASRS <Rd>,<Rm>,#<imm5>
+    elif (hw & 0xF800) == 0x1000:                 
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        imm5 = (hw >> 6) & 0x1F
+
+        if imm5 == 0:                              # 0 encodes a shift of 32
+            imm5 = 32
+        return INSTRUCTION(op=Op.ASR, rd=rd, rs1=rm, imm32=imm5, isImm=True, setflags=True)
+
 
 #__________________________
     #ROR register 
@@ -524,8 +623,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.ROR, setflags = True,  rd = rdn, rs1 = rdn, rs2 = rm)
     
 #__________________________
     # Compare: 
@@ -537,8 +635,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.CMP, setflags = True,   rs1 = rn, rs2 = rm)
 
     #CMP <Rn>,<Rm>
     elif (hw & 0xFF00) == 0x4500:
@@ -553,6 +650,9 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         if n == 15 and rm == 15:
             raise DecodeFault("UNPREDICTABLE")
      
+        return INSTRUCTION(op = Op.CMP, setflags = True, rs1 = n, rs2 = rm)
+
+
 
     #CMP immediate 
     #CMP <Rn>,#<imm8>
@@ -560,10 +660,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm8 = (hw >> 0) & 0x00FF     # extract imm8 from bits 7-0
         rn = (hw >> 8) & 0x0007       # extract rn from bits 10-8
 
-        n = rn
-        imm32 = imm8  #zero extension imm8:00, 32
+        return INSTRUCTION(op = Op.CMP, setflags = True, isImm= True, rs1 = rn, imm32=imm8)
+        
 
-    
+        
     # CMN register
 
     #CMN <Rn>,<Rm>
@@ -572,9 +672,9 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 0) & 0x7        # extract rn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 3-5
 
-        n = rn 
-        m = rm 
+   
         
+        return INSTRUCTION(op = Op.CMN, setflags = True,  rs1 = rn, rs2 = rm)
 #__________________________
     # Extend and Reverse: 
 #__________________________
@@ -588,10 +688,9 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
         d = rd 
         m = rm 
-        rotate = 0
+        #rotate = 0
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.SXTB,  rd = rdn, rs1 = rm)
 
 
     #SXTH 
@@ -602,127 +701,123 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 3-5
 
-        d = rd 
-        m = rm 
-        rotate = 0
+        
 
-        # set flags true
-        #.......
+        return INSTRUCTION(op = Op.SXTB,  rd = rdn, rs1 = rm)
+
+    
+     # UXTH <Rd>,<Rm>
+    elif (hw & 0xFFC0) == 0xB280:                  
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        return INSTRUCTION(op=Op.UXTH, rd=rd, rs1=rm, setflags=False)
+
+    # UXTB <Rd>,<Rm>
+    elif (hw & 0xFFC0) == 0xB2C0:                  
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        return INSTRUCTION(op=Op.UXTB, rd=rd, rs1=rm, setflags=False)
+
+
+    # REV <Rd>,<Rm>
+    elif (hw & 0xFFC0) == 0xBA00:                  
+        rd = (hw >> 0) & 0x7
+        rm = (hw >> 3) & 0x7
+        return INSTRUCTION(op=Op.REV, rd=rd, rs1=rm, setflags=False)
 
 #__________________________
     # Load and Store: 
 #__________________________
 
     # register
+
+
     elif (hw & 0xF000) == 0x5000:
-        if (hw & 0x0E00) == 0x0000:      # STR register # STR <Rt>,[<Rn>,<Rm>]
+
+        # STR register # STR <Rt>,[<Rn>,<Rm>]
+        if (hw & 0x0E00) == 0x0000:      
             rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
             rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
             rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
 
-            t = rt
-            n =rn 
-            m = rm 
+             
             
-            #index = true
-            # add = true 
-            #wback = false
+            return INSTRUCTION(op=Op.STR, rt=rt, rs1=rn, rs2=rm)
+
+        
+        # STRH register # STRH <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0200:    
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            
+            
+            return INSTRUCTION(op=Op.STRH, rt=rt, rs1=rn, rs2=rm)
+            
+        # STRB register # STRB <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0400:    
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            return INSTRUCTION(op=Op.STRB, rt=rt, rs1=rn, rs2=rm)
+
+
+        # LDRSB register # LDRSB <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0600:    
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
+            return INSTRUCTION(op=Op.LDRSB, rt=rt, rs1=rn, rs2=rm)
+
+
+             # LDR register # LDR <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0800:   
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
 
             
 
-        elif (hw & 0x0E00) == 0x0200:    # STRH register # STRH <Rt>,[<Rn>,<Rm>]
+            return INSTRUCTION(op=Op.LDR, rt=rt, rs1=rn, rs2=rm)
+
+            # LDRH register # LDRH <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0A00:    
             rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
             rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
             rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
 
-            t = rt
-            n =rn 
-            m = rm 
-            
-            #index = true
-            # add = true 
-            #wback = false
             
 
-        elif (hw & 0x0E00) == 0x0400:    # STRB register # STRB <Rt>,[<Rn>,<Rm>]
+            return INSTRUCTION(op=Op.LDRH, rt=rt, rs1=rn, rs2=rm)
+
+
+            # LDRB register # LDRB <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0C00:    
             rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
             rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
             rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
 
-            t = rt
-            n =rn 
-            m = rm 
+            return INSTRUCTION(op=Op.LDRB, rt=rt, rs1=rn, rs2=rm)
+
+
+            # LDRSH register # LDRSH <Rt>,[<Rn>,<Rm>]
+        elif (hw & 0x0E00) == 0x0E00:    
+            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
+            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
+            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
+
             
-            #index = true
-            # add = true 
-            #wback = false
-
-        elif (hw & 0x0E00) == 0x0600:    # LDRSB register # LDRSB <Rt>,[<Rn>,<Rm>]
-            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
-            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
-            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
-
-            t = rt
-            n =rn 
-            m = rm 
             
-            #index = true
-            # add = true 
-            #wback = false
+            return INSTRUCTION(op=Op.LDRSH, rt=rt, rs1=rn, rs2=rm)
 
-        elif (hw & 0x0E00) == 0x0800:    # LDR register # LDR <Rt>,[<Rn>,<Rm>]
-            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
-            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
-            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
 
-            t = rt
-            n = rn 
-            m = rm 
-
-            #index = true
-            # add = true 
-            #wback = false
-
-        elif (hw & 0x0E00) == 0x0A00:    # LDRH register # LDRH <Rt>,[<Rn>,<Rm>]
-            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
-            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
-            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
-
-            t = rt 
-            n = rn 
-            m = rm 
-
-            #index = true
-            #add true 
-            #wback false
-
-        elif (hw & 0x0E00) == 0x0C00:    # LDRB register # LDRB <Rt>,[<Rn>,<Rm>]
-            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
-            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
-            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
-
-            t = rt 
-            n = rn 
-            m = rm 
-
-            #index = true
-            #add true 
-            #wback false
-
-        elif (hw & 0x0E00) == 0x0E00:    # LDRSH register # LDRSH <Rt>,[<Rn>,<Rm>]
-            rt = (hw >> 0) & 0x7        # extract rt from bits 2-0
-            rn = (hw >> 3) & 0x7        # extract rn from bits 5-3
-            rm = (hw >> 6) & 0x7        # extract rm from bits 8-6
-
-            t = rt
-            n =rn 
-            m = rm 
-            
-            #index = true
-            # add = true 
-            #wback = false
-
-        # immediate ---------------
+    #__________________________
+    # Load and Store:  # immediate ---------------
+#__________________________
+   
 
 
     # STR immediate 
@@ -733,13 +828,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
         imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
 
-        t = rt
-        n = rn
+        
         imm32 = imm5 << 2              # ZeroExtend(imm5:'00', 32)
 
-        #index = true
-        #add = true
-        #wback = false
+        return INSTRUCTION(op=Op.STR, rt=t, rs1=rn, imm32=imm32, isImm=True)
 
     
      # STR <Rt>,[SP,#<imm8>]
@@ -747,13 +839,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm8 = (hw >> 0) & 0xFF        # extract imm8 from bits 7-0
         rt = (hw >> 8) & 0x7           # extract rt from bits 10-8
 
-        t = rt
-        n = 13                         # SP
+                               # SP
         imm32 = imm8 << 2              # ZeroExtend(imm8:'00', 32)
-
-        #index = true
-        #add = true
-        #wback = false
+        
+        return INSTRUCTION(op=Op.STR, rt=rt, rs1=sp, imm32=imm32, isImm=True)
 
     # LDR immediate 
 
@@ -763,13 +852,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
         imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
 
-        t = rt
-        n = rn
+        
         imm32 = imm5 << 2              # ZeroExtend(imm5:'00', 32)
 
-        #index = true
-        #add = true
-        #wback = false
+        return INSTRUCTION(op=Op.LDR, rt=rt, rs1=rn, imm32=imm32, isImm=True)
 
    
     # LDR <Rt>,[SP{,#<imm8>}]
@@ -777,14 +863,20 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm8 = (hw >> 0) & 0xFF        # extract imm8 from bits 7-0
         rt = (hw >> 8) & 0x7           # extract rt from bits 10-8
 
-        t = rt
-        n = 13                         # SP
+     
         imm32 = imm8 << 2              # ZeroExtend(imm8:'00', 32)
 
-        #index = true
-        #add = true
-        #wback = false
+        return INSTRUCTION(op=Op.LDR, rt=rt, rs1=sp, imm32=imm32, isImm=True)
 
+
+
+    # LDR <Rt>,[PC,#<imm8>] (literal pool load)
+    elif (hw & 0xF800) == 0x4800:                  
+        imm8 = (hw >> 0) & 0xFF
+        rt = (hw >> 8) & 0x7
+        imm32 = imm8 << 2
+
+        return INSTRUCTION(op=Op.LDR, rt=rt, rs1=15, imm32= imm32, isImm=True, setflags=False)
 
     # STRB immediate 
 
@@ -795,13 +887,9 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
         imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
 
-        t = rt
-        n = rn
-        imm32 = imm5                   # ZeroExtend(imm5, 32)
+        
 
-        #index = true
-        #add = true
-        #wback = false
+        return INSTRUCTION(op=Op.STRB, rt=rt, rs1=rn, imm32=imm5, isImm=True)
 
 
     # LDRB immediate 
@@ -813,13 +901,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
         imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
 
-        t = rt
-        n = rn
-        imm32 = imm5                   # ZeroExtend(imm5, 32)
-
-        #index = true
-        #add = true
-        #wback = false
+        return INSTRUCTION(op=Op.LDRB, rt=rt, rs1=rn, imm32=imm5, isImm=True)
 
     # STRH immediate 
 
@@ -830,13 +912,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
         imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
 
-        t = rt
-        n = rn
+       
         imm32 = imm5 << 1              # ZeroExtend(imm5:'0', 32)
 
-        #index = true
-        #add = true
-        #wback = false
+        return INSTRUCTION(op=Op.STRH, rt=rt, rs1=rn, imm32=imm32, isImm=True)
 
     # LDRH immediate 
 
@@ -847,14 +926,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rn = (hw >> 3) & 0x7           # extract rn from bits 5-3
         imm5 = (hw >> 6) & 0x1F        # extract imm5 from bits 10-6
 
-        t = rt
-        n = rn
+        
         imm32 = imm5 << 1              # ZeroExtend(imm5:'0', 32)
 
-        #index = true
-        #add = true
-        #wback = false
-
+        return INSTRUCTION(op=Op.ldrh, rt=rt, rs1=rn, imm32=imm32, isImm=True)
 
 
 #--------------------------------
@@ -868,20 +943,22 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
         rn = (hw >> 8) & 0x7               # extract rn from bits 10-8
 
-        n = rn
-        registers = register_list          # '00000000':register_list
         
-        # wback true (( registers >> n ) & 1 )== 0
+        registers = register_list          # '00000000':register_list
+        wback = (( registers >> n ) & 1 )== 0
+
+
         if registers.bit_count() < 1: 
             raise DecodeFault ("UNPREDICTABLE")
 
+        return INSTRUCTION(op=Op.LDM, rs1=rn, registers=registers, write_back=wback)
 
     # STM 
     elif (hw & 0xF800) == 0xC000:      # STM <Rn>!,<registers>
         register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
         rn = (hw >> 8) & 0x7               # extract rn from bits 10-8
 
-        n = rn
+        
         registers = register_list          # '00000000':register_list
         
         # wback true 
@@ -889,12 +966,13 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         if registers.bit_count() < 1: 
             raise DecodeFault ("UNPREDICTABLE")
 
+        return INSTRUCTION(op=Op.STM, rs1=rn, registers=registers, write_back=True)
+
     # PUSH 
     elif (hw & 0xFE00) == 0xB400:      # PUSH <registers>
         register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
         M = (hw >> 8) & 0x1                # extract M (LR) from bit 8
 
-        n = 13                             # SP
 
         if M == 1:
             registers = 0x4000 | register_list   # include LR (bit 14)
@@ -907,12 +985,14 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         if registers.bit_count() < 1: 
             raise DecodeFault ("UNPREDICTABLE")
 
+        return INSTRUCTION(op=Op.PUSH, rs1=sp, registers=registers, write_back=True)
+
     # POP 
     elif (hw & 0xFE00) == 0xBC00:      # POP <registers>
         register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
         P = (hw >> 8) & 0x1                # extract P (PC) from bit 8
 
-        n = 13                             # SP
+        
 
         if P == 1:           # P:'0000000':register_list
             registers = 0x8000 | register_list
@@ -925,6 +1005,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         if registers.bit_count() < 1: 
             raise DecodeFault ("UNPREDICTABLE")
 
+        return INSTRUCTION(op=Op.POP, rs1=13, registers=registers, write_back=True)
 
     else:
         raise DecodeFault("UNDEFINED")
