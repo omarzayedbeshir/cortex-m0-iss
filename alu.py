@@ -25,7 +25,7 @@ class AlUExceptoin(Exception):
 def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
   
   #denitfy the instructin type
-  match instr.type:
+  match instr.op:
       case "ADD"  : ADD(instr, cpu)
       case "ADC"  : ADC(instr, cpu)
       case "SUB"  : SUB(instr, cpu)
