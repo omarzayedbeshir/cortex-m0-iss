@@ -1,7 +1,3 @@
-from calendar import setfirstweekday
-from os import cpu_count
-from tkinter.tix import InputOnly
-from xml.etree.ElementTree import tostring
 from instruction import INSTRUCTION
 from cpu import CPU 
 
@@ -14,7 +10,7 @@ from cpu import CPU
 def execute ( instr: INSTRUCTION, cpu: CPU):
   
   #denitfy the instructin type
-  match instr.type:
+  match instr.op:
       case "ADD"  : ADD(instr, cpu)
       case "ADC"  : ADC(instr, cpu)
       case "SUB"  : SUB(instr, cpu)
@@ -23,6 +19,7 @@ def execute ( instr: INSTRUCTION, cpu: CPU):
       case "AND"  : AND(instr, cpu)
       case "ORR"  : ORR(instr, cpu)
       case "EOR"  : EOR(instr, cpu)
+
   return 
 
 
