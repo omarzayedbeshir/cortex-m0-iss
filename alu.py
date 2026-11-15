@@ -45,8 +45,9 @@ def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
       case "ROR"  : ROR(instr, cpu)
       case "B"    : nxt = B(instr, cpu, nxt)
       case "BL"   : nxt = BL(instr, cpu, nxt)
+      case "BX"   : nxt = BX(instr, cpu, nxt)
       case "BLX"  : nxt = BLX(instr, cpu, nxt)
-      
+      case _:       raise AlUExceptoin("UNDEFINED") #op is INVALID
       
   return nxt
 
@@ -63,7 +64,7 @@ def ADD( instr: INSTRUCTION, cpu: CPU):
      res = (input_1 + input_2)
      cpu.r[instr.rd] = mask32(res)
      #if flags should changed in case ADDS
-     if( instr.set_flags):
+     if( instr.setflags):
         handleFlags_ADD(cpu, input_1, input_2)
      
      return 
@@ -77,7 +78,7 @@ def ADC( instr: INSTRUCTION, cpu: CPU):
      
      cpu.r[instr.rd] = mask32(res)
      #if flags should changed in case ADDS
-     if(instr.set_flags):
+     if(instr.setflags):
         handleFlags_ADD(cpu, input_1, input_2, carry_in=int(cpu.C)) 
      
      return 
@@ -92,7 +93,7 @@ def SUB( instr: INSTRUCTION, cpu: CPU):
         diff = input_1 - input_2    #get difference
         cpu.r[instr.rd] = mask32(diff)
         
-        if(instr.set_flags):
+        if(instr.setflags):
             handleFlags_SUB(cpu, input_1, input_2)
             
         return 
@@ -107,7 +108,7 @@ def SBC( instr: INSTRUCTION, cpu: CPU):
         diff = input_1 - input_2  - borrow  #get difference
         cpu.r[instr.rd] = mask32(diff)
         
-        if(instr.set_flags):
+        if(instr.setflags):
             handleFlags_SUB(cpu, input_1, input_2, borrow )
             
         return     
@@ -280,7 +281,7 @@ def LSL(instr: INSTRUCTION, cpu: CPU):
     
     cpu.r[instr.rd]  = mask32(res)
     
-    if(instr.set_flags):
+    if(instr.setflags):
         handleFlags_LS(cpu, res, input_1, shiftby)
    
     return 
@@ -298,7 +299,7 @@ def LSR(instr: INSTRUCTION, cpu: CPU):
     
     cpu.r[instr.rd]  = mask32(res)
     
-    if(instr.set_flags):
+    if(instr.setflags):
         handleFlags_LS(cpu, res, input_1, shiftby, shiftLeft=False)
    
     return
@@ -327,7 +328,7 @@ def ASR(instr: INSTRUCTION, cpu: CPU):
     cpu.r[instr.rd] = res 
     
     #inplace handling flags
-    if(instr.set_flags):
+    if(instr.setflags):
         cpu.N = bool(res & 0x80000000)     #is negative? 1:0
         cpu.Z = (res==0)             #is Zero
         if(0<shiftby<32):                  
@@ -353,7 +354,7 @@ def ROR(instr: INSTRUCTION, cpu: CPU):
 
     cpu.r[instr.rd]  = mask32(res)
      
-    if(instr.set_flags):
+    if(instr.setflags):
        cpu.N = bool(res & 0x8000_0000)  #if MSB is 1
        cpu.Z = bool(res == 0) 
        cpu.C = bool (res & 0x8000_0000) if (not shiftby==0) else cpu.C #change only when shift not zero

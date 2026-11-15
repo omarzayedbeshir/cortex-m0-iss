@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
+from asyncio.windows_events import ERROR_CONNECTION_REFUSED
 import sys
 from cpu import CPU
 import decoder 
 import re
 import argparse
+import alu
 
+cpu = CPU   #Global CPU obj
 MAX_INSTR = 100_000_000
 ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
 RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10     # 256 KB
@@ -136,10 +139,13 @@ def step():
 
     try:
         instr = decoder.decode(hw, hw2) # return instruction decoded
+        nxt = alu.execute(instr,cpu, nxt)#execute the instruction, return nxt address
     except decoder.DecodeFault as error:
         fault(str(error))
+    except alu.AlUExceptoin as error:
+        fault(str(error))
 
-    #nxt = execute(instr, pc, nxt)
+   
 
     cpu.r[15] = nxt & 0xFFFFFFFF
     cpu.instret += 1
