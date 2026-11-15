@@ -45,6 +45,7 @@ def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
       case "ROR"  : ROR(instr, cpu)
       case "B"    : nxt = B(instr, cpu, nxt)
       case "BL"   : nxt = BL(instr, cpu, nxt)
+      case "BLX"  : nxt = BLX(instr, cpu, nxt)
       
       
   return nxt
