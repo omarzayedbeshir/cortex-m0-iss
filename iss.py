@@ -106,8 +106,16 @@ def set_nz(x):
     cpu.N = x >> 31
     cpu.Z = int(x == 0)
 
+stdin_data = None
+std_pointer = 0
+
+# i hate re, if someone finds an issue with it plz tell me
+INTEGER_INPUT = re.compile(rb"[ \t\n\r\v\f]*([+-]?[0-9]+)?")
+
 
 def svc(n):
+    global stdin_data, std_pointer
+    
     if n == 0x00:                              # EXIT
         sys.stdout.flush()
         sys.exit(cpu.r[0] & 0xFF)
@@ -122,12 +130,26 @@ def svc(n):
         v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else cpu.r[0]
         sys.stdout.buffer.write(str(v).encode("ascii"))
     elif (n == 0x13):
-        v = cpu.r[0] & 0xFFFFFFFF
+        value = cpu.r[0] & 0xFFFFFFFF
         sys.stdout.buffer.write(f"0x{value:08X}".encode("ascii"))
     elif (n == 0x14):
-        pass
+        if (stdin_data is None):
+            stdin_data = sys.stdin.buffer.read()
+        cpu.r[0] = 0xFFFFFFFF
+        if (std_pointer < len(stdin_data)):
+            cpu.r[0] = stdin_data[std_pointer]
+            std_pointer += 1
     elif (n == 0x15):
-        pass
+        if (stdin_data is None):
+            stdin_data = sys.stdin.buffer.read()
+        match = INTEGER_INPUT.match(stdin_data, std_pointer)
+        std_pointer = match.end()
+        token = match.group(1)
+        
+        value = 0
+        if (token):
+            value = int(token)
+        cpu.r[0] = value & 0xFFFFFFFF
     elif (n == 0x22):
         pass
     elif (n == 0x23):
