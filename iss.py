@@ -2,6 +2,7 @@
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
 import sys
 from cpu import CPU
+from Memory import *
 import decoder 
 import re
 import argparse
@@ -11,50 +12,21 @@ from instruction import INSTRUCTION
 
 cpu = CPU()
 
-MAX_INSTR = 100_000_000
-ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
-RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10     # 256 KB
 
-
-rom = bytearray(ROM_SIZE)
-ram = bytearray(RAM_SIZE)
 
 # All sections like text and other
 sections = {}
 
 def fault(kind):
-    print(f"FAULT {kind} at pc=0x{r[15]:08x}", file=sys.stderr)
+    print(f"FAULT {kind} at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
     sys.exit(255)
 
 def load_error(msg):
     print(f"load error: {msg}", file=sys.stderr)
     sys.exit(253)
 
-def region(addr):
-    """Return (buffer, offset) for a mapped address, or (None, 0)."""
-    if ROM_BASE <= addr < ROM_BASE + ROM_SIZE:
-        return rom, addr - ROM_BASE
-    if RAM_BASE <= addr < RAM_BASE + RAM_SIZE:
-        return ram, addr - RAM_BASE
-    return None, 0
 
 
-def read_mem(addr, size):                      # size = 1, 2 or 4
-    if addr % size:
-        fault("UNALIGNED")
-    buf, off = region(addr)
-    if buf is None:
-        fault("BUS")
-    return int.from_bytes(buf[off:off + size], "little")
-
-
-def write_mem(addr, value, size):
-    if addr % size:
-        fault("UNALIGNED")
-    buf, off = region(addr)
-    if buf is not ram:                         # only RAM is writable
-        fault("BUS")
-    buf[off:off + size] = (value & ((1 << 8 * size) - 1)).to_bytes(size, "little")
 
 
 def load_dump(path):
@@ -111,7 +83,7 @@ def set_nz(x):
 def svc(n):
     if n == 0x00:                              # EXIT
         sys.stdout.flush()
-        sys.exit(r[0] & 0xFF)
+        sys.exit(cpu.r[0] & 0xFF)
     elif n == 0x10:                            # PUTCHAR
         sys.stdout.buffer.write(bytes([r[0] & 0xFF]))
     elif n == 0x11:                            # PUTS
@@ -195,8 +167,10 @@ def disassemble_text():
         try:
             instruct= decoder.decode(hw1, hw2)
             text = decoder.disasm(instruct, pc)
-        except decoder.DecodeFault as err:
-            fault(str(err))
+        except decoder.DecodeFault:
+            enc = f"{hw1:04x}"
+            text = f".short\t0x{hw1:04x}"
+            size = 2
 
         
         print(f"{pc:08x}: {enc} {text}")
@@ -217,7 +191,7 @@ def main():
     reset()
 
     while True:
-        if instret >= MAX_INSTR:
+        if cpu.instret >= MAX_INSTR:
             print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
             sys.exit(254)
         step()

@@ -746,7 +746,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         
         imm32 = imm5 << 2              # ZeroExtend(imm5:'00', 32)
 
-        return INSTRUCTION(op=Op.STR, rt=t, rs1=rn, imm32=imm32, isImm=True)
+        return INSTRUCTION(op=Op.STR, rt=rt, rs1=rn, imm32=imm32, isImm=True)
 
     
      # STR <Rt>,[SP,#<imm8>]
@@ -943,7 +943,7 @@ def register_list(mask: int) -> str:
 
 def disasm(instr: INSTRUCTION, pc: int) -> str:
     op = instr.op
-    s = "s" if instr.setflags else ""
+    s = "s" if instr.setflags else "" # adding suffix s for instruction that update flags 
     name = op.value.lower()
 
     # Moves
