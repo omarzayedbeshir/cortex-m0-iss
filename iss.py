@@ -139,7 +139,7 @@ def step():
 
     try:
         instr = decoder.decode(hw, hw2) # return instruction decoded
-        nxt = alu.execute(instr,cpu, nxt)#execute the instruction, return nxt address
+        nxt = alu.execute(instr,cpu, nxt)#execute the instruction, return nxt address if needed
     except decoder.DecodeFault as error:
         fault(str(error))
     except alu.AlUExceptoin as error:
