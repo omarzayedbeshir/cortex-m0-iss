@@ -124,6 +124,30 @@ def svc(n):
     elif (n == 0x13):
         v = cpu.r[0] & 0xFFFFFFFF
         sys.stdout.buffer.write(f"0x{value:08X}".encode("ascii"))
+    elif (n == 0x14):
+        pass
+    elif (n == 0x15):
+        pass
+    elif (n == 0x22):
+        pass
+    elif (n == 0x23):
+        pass
+    elif (n == 0x30):
+        pass
+    elif (n == 0x31):
+        pass
+    elif (n == 0x32):
+        pass
+    elif (n == 0x40):
+        pass
+    elif (n == 0x41):
+        pass
+    elif (n == 0x42):
+        pass
+    elif (n == 0x43):
+        pass
+    
+
     # TODO: the other services in section 5 of the handout
     else:
         fault("UNDEFINED")
