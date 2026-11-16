@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """decoder.py -- CSCE 2303 Cortex-M0 Thumb instruction decoder."""
 
-from typing import optional
+from typing import Optional
 from instruction import INSTRUCTION, Op
 
 
@@ -45,7 +45,7 @@ def decode(hw: int, hw2: optional[int] = None) -> INSTRUCTION:
             else:
                 imm32 = imm25
 
-            return INSTRUCTION(op=type.BL, imm32=imm32, isImm=True) 
+            return INSTRUCTION(op=Op.BL, imm32=imm32, isImm=True) 
 
         else:
             raise DecodeFault("UNDEFINED")

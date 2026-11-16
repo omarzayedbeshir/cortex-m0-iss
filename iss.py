@@ -6,7 +6,7 @@ from cpu import CPU
 import decoder 
 import re
 import argparse
-import alu
+
 
 cpu = CPU   #Global CPU obj
 MAX_INSTR = 100_000_000
@@ -139,7 +139,7 @@ def step():
 
     try:
         instr = decoder.decode(hw, hw2) # return instruction decoded
-        nxt = alu.execute(instr,cpu, nxt)#execute the instruction, return nxt address if needed
+        nxt = cpu.execute(instr,cpu, nxt)#execute the instruction, return nxt address if needed
     except decoder.DecodeFault as error:
         fault(str(error))
     except alu.AlUExceptoin as error:

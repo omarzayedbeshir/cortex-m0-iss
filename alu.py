@@ -21,50 +21,22 @@ from cpu import CPU
 
 class AlUExceptoin(Exception):
         pass
-      
-def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
-  
-  #denitfy the instructin type
-  match instr.op:
-      case "ADD"  : nxt = ADD(instr, cpu, nxt)
-      case "ADC"  : ADC(instr, cpu)
-      case "SUB"  : SUB(instr, cpu)
-      case "SBC"  : SBC(instr, cpu)
-      case "RSB"  : RSB(instr, cpu)
-      case "CMP"  : CMP(instr, cpu)
-      case "CMN"  : CMN(instr, cpu)
-      case "MUL"  : MUL(instr, cpu)
-      case "AND"  : AND(instr, cpu)
-      case "ORR"  : ORR(instr, cpu)
-      case "EOR"  : EOR(instr, cpu)
-      case "BIC"  : BIC(instr, cpu)
-      case "TST"  : TST(instr, cpu)
-      case "LSL"  : LSL(instr, cpu)
-      case "LSR"  : LSR(instr, cpu)
-      case "ASR"  : ASR(instr, cpu)
-      case "ROR"  : ROR(instr, cpu)
-      case "B"    : nxt = B(instr, cpu, nxt)
-      case "BL"   : nxt = BL(instr, cpu, nxt)
-      case "BX"   : nxt = BX(instr, cpu, nxt)
-      case "BLX"  : nxt = BLX(instr, cpu, nxt)
-      case "MOV"  : nxt = MOV(instr, cpu, nxt)
-      case "MVN"  : MVN(instr,cpu)
-      case "SXTB" : SXTB(instr, cpu)
-      case "SXTH" : SXTH(instr, cpu)
-      case "UXTB" : UXTB(instr, cpu)
-      case "UXTH" : UXTH(instr, cpu)
-      case "REV"  : REV(instr, cpu)
-      case _:       raise AlUExceptoin("UNDEFINED") #op is INVALID
-      
-  return nxt
+
 
 
 def ADD( instr: INSTRUCTION, cpu: CPU, nxt):
-     
+     #ADDS <Rd>,<rs1>,#<imm3>
+     #ADDS <Rds>,#<imm8>
+     #ADD SP,<rs2>
+     #ADD <Rdm>, SP, <Rdm>
+     #ADDS <Rd>,<rs1>,<rs2>
+     #ADD <Rds>,<rs2>
+     #ADD <Rd>,SP,#<imm8>
+     #ADD SP,SP,#<imm7>
      if(instr.rs1 != 15 ):
          input_1 = mask32(cpu.r[instr.rs1])  
      else:#the rs1 is PC
-         input_1 = mask32(cpu.r[instr.rs1]) + 4
+         input_1 = mask32(cpu.r[instr.rs1] + 4)
      #check if second register is just an imm32
      if(instr.isImm): 
          input_2 = mask32(instr.imm32)
@@ -88,6 +60,7 @@ def ADD( instr: INSTRUCTION, cpu: CPU, nxt):
      
      return nxt
 def ADC( instr: INSTRUCTION, cpu: CPU):
+     # ADCS <Rds>,<rs2>
      input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
      #rs2
      input_2 = mask32(cpu.r[instr.rs2])
@@ -102,6 +75,10 @@ def ADC( instr: INSTRUCTION, cpu: CPU):
      
      return 
 def SUB( instr: INSTRUCTION, cpu: CPU):
+        #SUBS <Rd>,<rs1>,#<imm3>
+        #SUBS <Rds>,#<imm8>
+        #SUBS <Rd>,<rs1>,<rs2> 
+        #SUB SP,SP,#<imm7>
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
         #check if second register is just an imm32
         if(instr.isImm): 
@@ -119,6 +96,7 @@ def SUB( instr: INSTRUCTION, cpu: CPU):
  #SBCS r0, r1     no immdiate   
 #SBCS r0, r1     no immdiate 
 def SBC( instr: INSTRUCTION, cpu: CPU):
+        #SBCS <Rds>,<rs2>
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
         #not immdiate
         input_2 = mask32(cpu.r[instr.rs2])
@@ -134,6 +112,7 @@ def SBC( instr: INSTRUCTION, cpu: CPU):
  
  #RSBS R0, R1, #0  no immdiate other than 0 supported, always set flags
 def RSB(instr: INSTRUCTION, cpu: CPU):
+     #RSBS <Rd>,<rs1>,#0
      input_1 = cpu.r[instr.rs1]  
      res = 0 - input_1         #negate
      
@@ -146,6 +125,8 @@ def RSB(instr: INSTRUCTION, cpu: CPU):
  #            
 #CMP R0, R1
 def CMP( instr: INSTRUCTION, cpu: CPU):
+        #CMP <rs1>,<rs2>
+        #CMP <rs1>,#<imm8>
         input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
         #check if second register is just an imm32
         if(instr.isImm): 
@@ -158,6 +139,7 @@ def CMP( instr: INSTRUCTION, cpu: CPU):
         return 
 #CMN R0, R1, no immdiate expected
 def CMN( instr: INSTRUCTION, cpu: CPU):
+     #CMN <rs1>,<rs2>
      input_1 =  mask32(cpu.r[instr.rs1])  #rs1 have the index of value
      #check if second register is just an imm32
      input_2 = mask32(cpu.r[instr.rs2])
@@ -167,6 +149,7 @@ def CMN( instr: INSTRUCTION, cpu: CPU):
      return   
 #MULS r0, r1
 def MUL(instr: INSTRUCTION, cpu: CPU):
+    #MULS <Rdm>,<rs1>,<Rdm>
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
     
@@ -187,7 +170,9 @@ def MUL(instr: INSTRUCTION, cpu: CPU):
 
     return
 def MOV(instr: INSTRUCTION, cpu: CPU, nxt):
-    
+    # MOVS Rd, #imm8
+    # MOV <Rd>,<rs2> (high/all registers)
+    # MOVS <Rd>,<rs2> ( low registers, updates N and Z)
     if(instr.isImm):
         val = instr.imm32
     else:
@@ -211,7 +196,7 @@ def MOV(instr: INSTRUCTION, cpu: CPU, nxt):
     return nxt
 
 def ADR(instr: INSTRUCTION, cpu: CPU):
-    
+    #ADR <Rd>,<label>
     val = ((cpu.r[15] + 4) & 0xFFFF_FFFC) + instr.imm32 # rd = (PC + 4)& 1100 + imm32
     cpu.r[instr.rd] = mask32(val)
     
@@ -219,6 +204,7 @@ def ADR(instr: INSTRUCTION, cpu: CPU):
 #--------------------------- BITWISE ---------------------------------#
 #ANDS r0, r1    no immdiate expected
 def AND(instr: INSTRUCTION, cpu: CPU):
+    # ANDS <Rds>,<rs2>
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
     res = input_1 & input_2
@@ -237,6 +223,7 @@ def AND(instr: INSTRUCTION, cpu: CPU):
     return
 
 def ORR(instr: INSTRUCTION, cpu: CPU):
+    # ORRS <Rds>,<rs2>
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
     res = input_1 | input_2
@@ -255,6 +242,7 @@ def ORR(instr: INSTRUCTION, cpu: CPU):
     return
 
 def EOR(instr: INSTRUCTION, cpu: CPU):
+     #EORS <Rds>,<rs2>
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
     res = input_1 ^ input_2
@@ -267,6 +255,7 @@ def EOR(instr: INSTRUCTION, cpu: CPU):
     return
 #bit Clear : BICS r0, r1
 def BIC(instr: INSTRUCTION, cpu: CPU):
+     #BICS <Rds>,<rs2>
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
     res = input_1 &(~input_2)   # r0 & (not r1)
@@ -279,6 +268,7 @@ def BIC(instr: INSTRUCTION, cpu: CPU):
     return
 #TST r0, r1, like AND, no store 
 def TST(instr: INSTRUCTION, cpu: CPU):
+    #TST <rs1>,<rs2>
     input_1 = cpu.r[instr.rs1]
     input_2 = cpu.r[instr.rs2]
     res = input_1 & input_2
@@ -292,6 +282,7 @@ def TST(instr: INSTRUCTION, cpu: CPU):
  
 def MVN(instr: INSTRUCTION, cpu: CPU): #BITWISE NOT
     #no immediate expected
+    # MVNS <Rd>,<rs2>
     val = cpu.r[instr.rs1]
         
     res = mask32(~val)
@@ -308,8 +299,8 @@ def MVN(instr: INSTRUCTION, cpu: CPU): #BITWISE NOT
 
 #LSLS r0, r1, #2 or LSLS r0, r1
 def LSL(instr: INSTRUCTION, cpu: CPU):
-    
-
+    #LSLS <Rds>,<rs2>
+    ## LSLS <Rd>,<rs2>,#<imm5>
     input_1 = cpu.r[instr.rs1]
     
     if(instr.isImm):
@@ -327,7 +318,8 @@ def LSL(instr: INSTRUCTION, cpu: CPU):
     return 
 
 def LSR(instr: INSTRUCTION, cpu: CPU):
-    
+    #LSRS <Rds>,<rs2>
+    # LSRS <Rd>,<rs2>,#<imm5>
     input_1 = cpu.r[instr.rs1]
     
     if(instr.isImm):
@@ -345,6 +337,8 @@ def LSR(instr: INSTRUCTION, cpu: CPU):
     return
 
 def ASR(instr: INSTRUCTION, cpu: CPU):
+    #ASRS <Rds>,<rs2>
+    # ASRS <Rd>,<rs2>,#<imm5>
     input_1 = cpu.r[instr.rs1]  #assuming input_1 stored as unsigned integer 
     
     if(instr.isImm):
@@ -380,7 +374,7 @@ def ASR(instr: INSTRUCTION, cpu: CPU):
 
 #RORS R0, R1, no immdiate expected
 def ROR(instr: INSTRUCTION, cpu: CPU):
-    
+    #RORS <Rds>,<rs2>
     input_1 = cpu.r[instr.rs1]
     shiftby = (cpu.r[instr.rs2] & 0x0FF)    #lower 8 bits
     res = input_1
@@ -405,7 +399,7 @@ def ROR(instr: INSTRUCTION, cpu: CPU):
 #----------------------------------- BRANCH ------------------------------------
 def B(instr: INSTRUCTION, cpu: CPU, nxt):
     #cpu.r[15] have the current address
-    
+    #B<c> <label>
     jump = False;
     if(instr.condition==0b0000): #BEQ : Equal?
         if(cpu.Z==True):
@@ -471,6 +465,7 @@ def BL(instr: INSTRUCTION, cpu: CPU, nxt):
     return nxt
    
 def BX(instr: INSTRUCTION, cpu: CPU, nxt):
+    # BX <rs2>
     addrs = cpu.r[instr.rs1]
     if(addrs & 0x0000_0001):#LSB is 1, state Thumb
         nxt = mask32(addrs &0xFFFF_FFFE)    #set bit_0 to 0
@@ -480,6 +475,7 @@ def BX(instr: INSTRUCTION, cpu: CPU, nxt):
     return nxt
     
 def BLX(instr: INSTRUCTION, cpu: CPU, nxt):
+    # BLX <rs2>
     addrs = cpu.r[instr.rs1]    #address of next instruction
     if(addrs & 0x0000_0001):#LSB is 1, state Thumb
         nxt = mask32(addrs &0xFFFF_FFFE)    #set bit_0 to 0
@@ -507,9 +503,9 @@ def SXTH(instr: INSTRUCTION, cpu: CPU):
     #SXTh <rd>,<rs1>
     val = cpu.r[instr.rs1]
     
-    #is signed at bit 7
+    #is signed at bit 15
     if((val>>15)&1):#negative
-        val = (val | 0xFFFF_0000)   #sign negative extneded the upper 24 bits 
+        val = (val | 0xFFFF_0000)   #sign negative extneded the upper 16 bits 
     else:
         val = (val & 0x0000_FFFF)   #sign positive extneded the upper 24 bits
     
@@ -521,7 +517,7 @@ def UXTB(instr: INSTRUCTION, cpu: CPU):
    
     return 
 def UXTH(instr: INSTRUCTION, cpu: CPU):
-    #UXTB <rd>,<rs1>
+    #UXTH <rd>,<rs1>
     cpu.r[instr.rd] = mask32((cpu.r[instr.rs1] & 0x0000_FFFF))  #Zero extneded the upper 24 bits
    
     return
@@ -601,38 +597,38 @@ def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
 # class Op(str, Enum):
 
 #     MOV = "MOV"         # MOVS #imm8, MOV reg, MOVS reg (LSLS #0)
-#     MVN = "MVN"         # MVNS Rd, Rm
+#     MVN = "MVN"         # MVNS Rd, rs2
 
 #     # Arithmetic
 #     ADD = "ADD"         # ADDS imm3/imm8/reg, ADD high/SP+reg/SP+imm7/SP+imm8
 #     ADR = "ADR"         # ADR Rd, label (Align(PC + 4, 4) + imm32)
-#     ADC = "ADC"         # ADCS Rdn, Rm
+#     ADC = "ADC"         # ADCS Rds, rs2
 #     SUB = "SUB"         # SUBS imm3/imm8/reg, SUB SP-imm7
-#     SBC = "SBC"         # SBCS Rdn, Rm
-#     RSB = "RSB"         # RSBS Rd, Rn, #0
-#     MUL = "MUL"         # MULS Rdm, Rn, Rdm
+#     SBC = "SBC"         # SBCS Rds, rs2
+#     RSB = "RSB"         # RSBS Rd, rs1, #0
+#     MUL = "MUL"         # MULS Rdm, rs1, Rdm
 
 #     # Logic & Shifts
-#     AND = "AND"         # ANDS Rdn, Rm
-#     ORR = "ORR"         # ORRS Rdn, Rm
-#     EOR = "EOR"         # EORS Rdn, Rm
-#     BIC = "BIC"         # BICS Rdn, Rm
-#     TST = "TST"         # TST Rn, Rm
+#     AND = "AND"         # ANDS Rds, rs2
+#     ORR = "ORR"         # ORRS Rds, rs2
+#     EOR = "EOR"         # EORS Rds, rs2
+#     BIC = "BIC"         # BICS Rds, rs2
+#     TST = "TST"         # TST rs1, rs2
 #     LSL = "LSL"         # LSLS imm5, LSLS reg
 #     LSR = "LSR"         # LSRS imm5, LSRS reg
 #     ASR = "ASR"         # ASRS imm5, ASRS reg
-#     ROR = "ROR"         # RORS Rdn, Rm
+#     ROR = "ROR"         # RORS Rds, rs2
 
 #     # Compare
 #     CMP = "CMP"         # CMP #imm8, CMP reg (low & high)
-#     CMN = "CMN"         # CMN Rn, Rm
+#     CMN = "CMN"         # CMN rs1, rs2
 
 #     # Extend & Reverse
-#     SXTB = "SXTB"       # SXTB Rd, Rm
-#     SXTH = "SXTH"       # SXTH Rd, Rm
-#     UXTB = "UXTB"       # UXTB Rd, Rm
-#     UXTH = "UXTH"       # UXTH Rd, Rm
-#     REV = "REV"         # REV Rd, Rm
+#     SXTB = "SXTB"       # SXTB Rd, rs2
+#     SXTH = "SXTH"       # SXTH Rd, rs2
+#     UXTB = "UXTB"       # UXTB Rd, rs2
+#     UXTH = "UXTH"       # UXTH Rd, rs2
+#     REV = "REV"         # REV Rd, rs2
 
 #     # Load & Store
 #     LDR = "LDR"         # LDR imm5, LDR [SP, #imm8], LDR reg, LDR literal [PC, #imm8]
@@ -645,16 +641,16 @@ def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
 #     STRH = "STRH"       # STRH imm5, STRH reg
 
 #     # Multiple
-#     LDM = "LDM"         # LDM Rn{!}, <registers>
-#     STM = "STM"         # STM Rn!, <registers>
+#     LDM = "LDM"         # LDM rs1{!}, <registers>
+#     STM = "STM"         # STM rs1!, <registers>
 #     PUSH = "PUSH"       # PUSH <registers>
 #     POP = "POP"         # POP <registers>
 
 #     # Control & System
 #     B = "B"             # B label (condition=None) and B<c> label (condition=0..13)
 #     BL = "BL"           # BL label (32-bit, size=4)
-#     BX = "BX"           # BX Rm
-#     BLX = "BLX"         # BLX Rm
+#     BX = "BX"           # BX rs2
+#     BLX = "BLX"         # BLX rs2
 #     SVC = "SVC"         # SVC #imm8
 
 #             # NOP
