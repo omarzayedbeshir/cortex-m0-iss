@@ -88,6 +88,11 @@ def load_dump(path):
             continue
 
 def reset():
+    cpu.r[:] = [0] * 16
+    cpu.N = cpu.Z = cpu.C = cpu.V = False
+    cpu.instret = 0
+
+
     cpu.r[13] = read_mem(0, 4)                     # initial sp
     pc = read_mem(4, 4)                        # reset vector
     cpu.r[15] = pc                                 # diagnostic uses the reset vector
@@ -198,9 +203,11 @@ def disassemble_text():
         print(f"{pc:08x}: {enc} {text}")
         pc += size
 
+cpu = CPU()
+
 def main():
-    # TODO: parse the options in section 6
-    cpu = CPU()
+    # TODO: parse the options in section 6 
+    global cpu
     args = parse_args(sys.argv[1:])
 
 
