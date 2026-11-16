@@ -1,5 +1,6 @@
-from instruction import INSTRUCTION
-from cpu import CPU 
+from instruction import INSTRUCTION, Op
+from cpu import CPU
+from Memory import *
 
 
 #-------------------------------------------------------------------------#
@@ -22,6 +23,27 @@ from cpu import CPU
 class AlUExceptoin(Exception):
         pass
 
+      #____ load, store, push, pop 
+
+      case Op.LDR | Op.LDRH | Op.LDRB | Op.LDRSH | Op.LDRSB:
+            load(cpu, instr, read_mem)
+
+      case Op.STR | Op.STRH | Op.STRB:
+            store(cpu, instr, write_mem)
+
+      case Op.PUSH:
+            exec_push(cpu, instr, write_mem)
+
+      case Op.POP:
+            nxt = exec_pop(cpu, instr, nxt, read_mem, fault)
+
+      case Op.LDM:
+            loadMult(cpu, instr, read_mem)
+
+      case Op.STM:
+            StorMult(cpu, instr, write_mem)
+
+  return 
 
 
 def ADD( instr: INSTRUCTION, cpu: CPU, nxt):
@@ -657,5 +679,7 @@ def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
 #     NOP = "NOP"
         
         
-        
+
+
+
         

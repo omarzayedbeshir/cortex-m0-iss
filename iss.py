@@ -3,19 +3,17 @@
 from asyncio.windows_events import ERROR_CONNECTION_REFUSED
 import sys
 from cpu import CPU
+from Memory import *
 import decoder 
 import re
 import argparse
+import decoder 
+import instruction
+from instruction import INSTRUCTION
+
+cpu = CPU()
 
 
-cpu = CPU   #Global CPU obj
-MAX_INSTR = 100_000_000
-ROM_BASE, ROM_SIZE = 0x00000000, 1 << 20       # 1 MB
-RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10     # 256 KB
-
-
-rom = bytearray(ROM_SIZE)
-ram = bytearray(RAM_SIZE)
 
 # All sections like text and other
 sections = {}
@@ -28,31 +26,8 @@ def load_error(msg):
     print(f"load error: {msg}", file=sys.stderr)
     sys.exit(253)
 
-def region(addr):
-    """Return (buffer, offset) for a mapped address, or (None, 0)."""
-    if ROM_BASE <= addr < ROM_BASE + ROM_SIZE:
-        return rom, addr - ROM_BASE
-    if RAM_BASE <= addr < RAM_BASE + RAM_SIZE:
-        return ram, addr - RAM_BASE
-    return None, 0
 
 
-def read_mem(addr, size):                      # size = 1, 2 or 4
-    if addr % size:
-        fault("UNALIGNED")
-    buf, off = region(addr)
-    if buf is None:
-        fault("BUS")
-    return int.from_bytes(buf[off:off + size], "little")
-
-
-def write_mem(addr, value, size):
-    if addr % size:
-        fault("UNALIGNED")
-    buf, off = region(addr)
-    if buf is not ram:                         # only RAM is writable
-        fault("BUS")
-    buf[off:off + size] = (value & ((1 << 8 * size) - 1)).to_bytes(size, "little")
 
 
 def load_dump(path):
@@ -235,22 +210,23 @@ def disassemble_text():
     pc, end = rng
     while pc < end:
         hw1 = read_code16(pc)
+        hw2 = None  # in case of having 32-bit instruction 
 
         if (hw1 >> 11) in (0b11101, 0b11110, 0b11111):
             hw2 = read_code16(pc + 2)
             enc = f"{hw1:04x}{hw2:04x}"
-            text = decode32(pc, hw1, hw2)
             size = 4
         else:
             enc = f"{hw1:04x}"
-            text = decode16(pc, hw1)
             size = 2
 
         try:
-            instr = decoder.decode(hw1, hw2)
-            text = decoder.disasm(instr, pc)
-        except decoder.DecodeFault as err:
-            fault(str(err))
+            instruct= decoder.decode(hw1, hw2)
+            text = decoder.disasm(instruct, pc)
+        except decoder.DecodeFault:
+            enc = f"{hw1:04x}"
+            text = f".short\t0x{hw1:04x}"
+            size = 2
 
         
         print(f"{pc:08x}: {enc} {text}")
@@ -259,8 +235,8 @@ def disassemble_text():
 cpu = CPU()
 
 def main():
-    # TODO: parse the options in section 6 
-    global cpu
+    # TODO: parse the options in section 6
+    
     args = parse_args(sys.argv[1:])
 
 
