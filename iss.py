@@ -218,7 +218,7 @@ def main():
     reset()
 
     while True:
-        if cpu.instret >= MAX_INSTR:
+        if cpu.instret >= args.max_instr:
             print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
             sys.exit(254)
         step()
