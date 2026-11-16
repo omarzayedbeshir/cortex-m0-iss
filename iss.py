@@ -93,9 +93,9 @@ def reset():
     cpu.instret = 0
 
 
-    cpu.r[13] = read_mem(0, 4)                     # initial sp
-    pc = read_mem(4, 4)                        # reset vector
-    cpu.r[15] = pc                                 # diagnostic uses the reset vector
+    cpu.r[13] = read_mem(0, 4) & 0xFFFFFFFC # initial sp
+    pc = read_mem(4, 4) # reset vector
+    cpu.r[15] = pc # diagnostic uses the reset vector
     if not (pc & 1):
         fault("INVSTATE")
     cpu.r[15] = pc & ~1
@@ -103,9 +103,8 @@ def reset():
 
 
 def set_nz(x):
-    global N, Z
-    N = x >> 31
-    Z = int(x == 0)
+    cpu.N = x >> 31
+    cpu.Z = int(x == 0)
 
 
 def svc(n):
@@ -130,7 +129,6 @@ def svc(n):
 def step():
     """Execute one instruction. r[15] holds the address of the current
     instruction; an instruction that reads pc must see r[15] + 4."""
-    global instret
     pc = cpu.r[15]
     hw = read_mem(pc, 2)
     nxt = pc + 2
