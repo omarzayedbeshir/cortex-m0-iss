@@ -354,7 +354,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         
 
 
-        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = sp, rs1 = sp, imm32 = imm3)
+        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = sp, rs1 = sp, imm32 = imm32)
 
 
     #__________________________

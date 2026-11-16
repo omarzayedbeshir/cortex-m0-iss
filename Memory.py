@@ -1,4 +1,4 @@
-from cpu import CPU 
+from __future__ import annotations 
 from instruction import *
 
 
@@ -91,21 +91,21 @@ def load(instr: INSTRUCTION, cpu: CPU ) -> None:
 
 
 
-def loadMult(instr, cpu,  read_mem) -> None:
+def loadMult(instr, cpu) -> None:
     
     l_address = cpu.r[instr.rs1]    
 
     for i in range(8):          # checking registers bit by bit to determine affected ones
         if (instr.registers >> i) & 1:  
-            cpu.r[i] = read_mem(addr, 4)
-            addr = (addr + 4) & 0xFFFFFFFF    # to restrict it to 32 bits as register length 
+            cpu.r[i] = read_mem(l_address, 4)
+            l_address = (l_address + 4) & 0xFFFFFFFF    # to restrict it to 32 bits as register length 
 
     # Writeback occurs only if Rn is not in the loaded register list
     if not ((instr.registers >> instr.rs1) & 1):
-        cpu.r[instr.rs1] = addr
+        cpu.r[instr.rs1] = l_address
 
 
-def StorMult(instr, cpu, write_mem) -> None:
+def StorMult(instr, cpu) -> None:
     
     s_address = cpu.r[instr.rs1]  
 
@@ -113,14 +113,14 @@ def StorMult(instr, cpu, write_mem) -> None:
      # checking registers bit by bit to determine affected ones
     for i in range(8):
         if (instr.registers >> i) & 1:
-            write_mem(addr, cpu.r[i], 4)    # if true so we write on 
-            addr = (addr + 4) & 0xFFFFFFFF      # to restrict it to 32 bits as register length 
+            write_mem(s_address, cpu.r[i], 4)    # if true so we write on 
+            s_address = (s_address + 4) & 0xFFFFFFFF      # to restrict it to 32 bits as register length 
 
-    cpu.r[instr.rs1] = addr
+    cpu.r[instr.rs1] = s_address
 
 # ______________ PUSH , POP #________________
 
-def exec_push(instr, cpu, write_mem) -> None:
+def exec_push(instr, cpu) -> None:
     
     count = bin(instr.registers).count("1") # counting ones, so we know how many bytes required in the stack
     address = (cpu.r[13] - 4 * count) & 0xFFFFFFFF # allocate space according to num of regs
@@ -132,7 +132,7 @@ def exec_push(instr, cpu, write_mem) -> None:
             address = (address + 4) & 0xFFFFFFFF
 
 
-def exec_pop(instr, cpu, nxt: int, read_mem, fault) -> int:
+def exec_pop(instr, cpu, nxt: int) -> int:
     
     address = cpu.r[13]
 
@@ -141,7 +141,7 @@ def exec_pop(instr, cpu, nxt: int, read_mem, fault) -> int:
             val = read_mem(address, 4)
             if i == 15:  
                 if not (val & 1):
-                    MemError("INVSTATE")
+                    raise MemError("INVSTATE")
                 nxt = val & ~1
             else:
                 cpu.r[i] = val

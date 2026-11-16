@@ -2,14 +2,13 @@
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
 from asyncio.windows_events import ERROR_CONNECTION_REFUSED
 import sys
-from cpu import CPU
-from Memory import *
-import decoder 
-import re
 import argparse
-import decoder 
-import instruction
-from instruction import INSTRUCTION
+import decoder
+from cpu import *
+from Memory import *
+import re
+
+from instruction import INSTRUCTION, Op
 
 cpu = CPU()
 
