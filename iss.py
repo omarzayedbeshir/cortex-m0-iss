@@ -21,7 +21,7 @@ ram = bytearray(RAM_SIZE)
 sections = {}
 
 def fault(kind):
-    print(f"FAULT {kind} at pc=0x{r[15]:08x}", file=sys.stderr)
+    print(f"FAULT {kind} at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
     sys.exit(255)
 
 def load_error(msg):
@@ -91,9 +91,14 @@ def load_dump(path):
             continue
 
 def reset():
-    cpu.r[13] = read_mem(0, 4)                     # initial sp
-    pc = read_mem(4, 4)                        # reset vector
-    cpu.r[15] = pc                                 # diagnostic uses the reset vector
+    cpu.r[:] = [0] * 16
+    cpu.N = cpu.Z = cpu.C = cpu.V = False
+    cpu.instret = 0
+
+
+    cpu.r[13] = read_mem(0, 4) & 0xFFFFFFFC # initial sp
+    pc = read_mem(4, 4) # reset vector
+    cpu.r[15] = pc # diagnostic uses the reset vector
     if not (pc & 1):
         fault("INVSTATE")
     cpu.r[15] = pc & ~1
@@ -101,25 +106,73 @@ def reset():
 
 
 def set_nz(x):
-    global N, Z
-    N = x >> 31
-    Z = int(x == 0)
+    cpu.N = x >> 31
+    cpu.Z = int(x == 0)
+
+stdin_data = None
+std_pointer = 0
+
+# i hate re, if someone finds an issue with it plz tell me
+INTEGER_INPUT = re.compile(rb"[ \t\n\r\v\f]*([+-]?[0-9]+)?")
 
 
 def svc(n):
+    global stdin_data, std_pointer
+    
     if n == 0x00:                              # EXIT
         sys.stdout.flush()
-        sys.exit(r[0] & 0xFF)
+        sys.exit(cpu.r[0] & 0xFF)
     elif n == 0x10:                            # PUTCHAR
-        sys.stdout.buffer.write(bytes([r[0] & 0xFF]))
+        sys.stdout.buffer.write(bytes([cpu.r[0] & 0xFF]))
     elif n == 0x11:                            # PUTS
         a = cpu.r[0]
         while read_mem(a, 1) != 0:
             sys.stdout.buffer.write(bytes([read_mem(a, 1)]))
             a += 1
     elif n == 0x12:                            # PUTINT
-        v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else r[0]
+        v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else cpu.r[0]
         sys.stdout.buffer.write(str(v).encode("ascii"))
+    elif (n == 0x13):
+        value = cpu.r[0] & 0xFFFFFFFF
+        sys.stdout.buffer.write(f"0x{value:08X}".encode("ascii"))
+    elif (n == 0x14):
+        if (stdin_data is None):
+            stdin_data = sys.stdin.buffer.read()
+        cpu.r[0] = 0xFFFFFFFF
+        if (std_pointer < len(stdin_data)):
+            cpu.r[0] = stdin_data[std_pointer]
+            std_pointer += 1
+    elif (n == 0x15):
+        if (stdin_data is None):
+            stdin_data = sys.stdin.buffer.read()
+        match = INTEGER_INPUT.match(stdin_data, std_pointer)
+        std_pointer = match.end()
+        token = match.group(1)
+        
+        value = 0
+        if (token):
+            value = int(token)
+        cpu.r[0] = value & 0xFFFFFFFF
+    elif (n == 0x22):
+        pass
+    elif (n == 0x23):
+        pass
+    elif (n == 0x30):
+        pass
+    elif (n == 0x31):
+        pass
+    elif (n == 0x32):
+        pass
+    elif (n == 0x40):
+        pass
+    elif (n == 0x41):
+        pass
+    elif (n == 0x42):
+        pass
+    elif (n == 0x43):
+        pass
+    
+
     # TODO: the other services in section 5 of the handout
     else:
         fault("UNDEFINED")
@@ -128,7 +181,6 @@ def svc(n):
 def step():
     """Execute one instruction. r[15] holds the address of the current
     instruction; an instruction that reads pc must see r[15] + 4."""
-    global instret
     pc = cpu.r[15]
     hw = read_mem(pc, 2)
     nxt = pc + 2
@@ -204,9 +256,11 @@ def disassemble_text():
         print(f"{pc:08x}: {enc} {text}")
         pc += size
 
+cpu = CPU()
+
 def main():
-    # TODO: parse the options in section 6
-    cpu = CPU()
+    # TODO: parse the options in section 6 
+    global cpu
     args = parse_args(sys.argv[1:])
 
 
@@ -219,7 +273,7 @@ def main():
     reset()
 
     while True:
-        if instret >= MAX_INSTR:
+        if cpu.instret >= args.max_instr:
             print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
             sys.exit(254)
         step()
