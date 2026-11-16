@@ -601,11 +601,9 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rd = (hw >> 0) & 0x7        # extract rd from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 3-5
 
-        d = rd 
-        m = rm 
-        #rotate = 0
+        
 
-        return INSTRUCTION(op = Op.SXTB,  rd = rdn, rs1 = rm)
+        return INSTRUCTION(op = Op.SXTB,  rd = rd, rs1 = rm)
 
 
     #SXTH 
@@ -618,7 +616,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
         
 
-        return INSTRUCTION(op = Op.SXTB,  rd = rdn, rs1 = rm)
+        return INSTRUCTION(op = Op.SXTB,  rd = rd, rs1 = rm)
 
     
      # UXTH <Rd>,<Rm>
@@ -844,7 +842,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         
         imm32 = imm5 << 1              # ZeroExtend(imm5:'0', 32)
 
-        return INSTRUCTION(op=Op.ldrh, rt=rt, rs1=rn, imm32=imm32, isImm=True)
+        return INSTRUCTION(op=Op.LDRH, rt=rt, rs1=rn, imm32=imm32, isImm=True)
 
 
 #--------------------------------
@@ -860,7 +858,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
         
         registers = register_list          # '00000000':register_list
-        wback = (( registers >> n ) & 1 )== 0
+        wback = (( registers >> rn ) & 1 )== 0
 
 
         if  registers == 0: 

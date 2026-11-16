@@ -170,7 +170,8 @@ def step():
         fault(str(error))
     except alu.AlUExceptoin as error:
         fault(str(error))
-
+    except MemError as error:
+        fault(str(error))
    
 
     cpu.r[15] = nxt & 0xFFFFFFFF
@@ -231,7 +232,7 @@ def disassemble_text():
         print(f"{pc:08x}: {enc} {text}")
         pc += size
 
-cpu = CPU()
+
 
 def main():
     # TODO: parse the options in section 6
