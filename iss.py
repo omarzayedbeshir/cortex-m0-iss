@@ -121,6 +121,9 @@ def svc(n):
     elif n == 0x12:                            # PUTINT
         v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else cpu.r[0]
         sys.stdout.buffer.write(str(v).encode("ascii"))
+    elif (n == 0x13):
+        v = cpu.r[0] & 0xFFFFFFFF
+        sys.stdout.buffer.write(f"0x{value:08X}".encode("ascii"))
     # TODO: the other services in section 5 of the handout
     else:
         fault("UNDEFINED")
