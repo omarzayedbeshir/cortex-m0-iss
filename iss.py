@@ -18,7 +18,7 @@ ram = bytearray(RAM_SIZE)
 sections = {}
 
 def fault(kind):
-    print(f"FAULT {kind} at pc=0x{r[15]:08x}", file=sys.stderr)
+    print(f"FAULT {kind} at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
     sys.exit(255)
 
 def load_error(msg):
@@ -111,16 +111,16 @@ def set_nz(x):
 def svc(n):
     if n == 0x00:                              # EXIT
         sys.stdout.flush()
-        sys.exit(r[0] & 0xFF)
+        sys.exit(cpu.r[0] & 0xFF)
     elif n == 0x10:                            # PUTCHAR
-        sys.stdout.buffer.write(bytes([r[0] & 0xFF]))
+        sys.stdout.buffer.write(bytes([cpu.r[0] & 0xFF]))
     elif n == 0x11:                            # PUTS
         a = cpu.r[0]
         while read_mem(a, 1) != 0:
             sys.stdout.buffer.write(bytes([read_mem(a, 1)]))
             a += 1
     elif n == 0x12:                            # PUTINT
-        v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else r[0]
+        v = cpu.r[0] - (1 << 32) if cpu.r[0] & 0x80000000 else cpu.r[0]
         sys.stdout.buffer.write(str(v).encode("ascii"))
     # TODO: the other services in section 5 of the handout
     else:
@@ -220,7 +220,7 @@ def main():
     reset()
 
     while True:
-        if instret >= MAX_INSTR:
+        if cpu.instret >= MAX_INSTR:
             print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
             sys.exit(254)
         step()
