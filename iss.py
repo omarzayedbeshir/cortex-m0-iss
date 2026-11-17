@@ -3,10 +3,12 @@
 import sys
 import argparse
 import decoder
-from cpu import *
+from cpu import CPU, execute
 from Memory import *
+import Memory
+from contextlib import nullcontext
 import re
-
+import alu
 from instruction import INSTRUCTION, Op
 
 cpu = CPU()
@@ -93,8 +95,7 @@ def svc(n):
     global stdin_data, std_pointer
     
     if n == 0x00:                              # EXIT
-        sys.stdout.flush()
-        sys.exit(cpu.r[0] & 0xFF)
+        return cpu.r[0] & 0xFF
     elif n == 0x10:                            # PUTCHAR
         sys.stdout.buffer.write(bytes([cpu.r[0] & 0xFF]))
     elif n == 0x11:                            # PUTS
@@ -150,32 +151,83 @@ def svc(n):
     else:
         fault("UNDEFINED")
 
+TRACE_REGISTERS = (*[f"r{i}" for i in range(13)], "sp", "lr")
 
-def step():
+# just to make thigs clear, instead of a lambda function, I wrote a func that returns address so we sort on it
+def write_address(write):
+    address, _, _ = write
+    return address
+
+def write_trace_entry(trace, pc, hw, hw2, before, writes):
+    encoding = f"{hw:04x}"
+    if hw2 is not None:
+        encoding += f"{hw2:04x}"
+        
+    fields = [f"{pc:08x}", encoding]
+
+    for i, name in enumerate(TRACE_REGISTERS):
+        # checking law this register changed, if so, print
+        if before[i] != cpu.r[i]:
+            fields.append(f"{name}={cpu.r[i] & 0xFFFFFFFF:08x}")
+
+    writes_by_address = sorted(writes, key=write_address)
+    
+    for address, value, size in writes_by_address:
+        fields.append(f"[{address:08x}]={value:0{size * 2}x}")
+
+    nFlag = int(cpu.N)
+    zFlag = int(cpu.Z)
+    cFlag = int(cpu.C)
+    vFlag = int(cpu.V)
+    
+    flags = str(nFlag) + str(zFlag) + str(cFlag) + str(vFlag)
+    
+    fields.append(f"NZCV={flags}")
+    trace.write(" ".join(fields) + "\n")
+
+def step(trace=None):
     """Execute one instruction. r[15] holds the address of the current
     instruction; an instruction that reads pc must see r[15] + 4."""
     pc = cpu.r[15]
-    hw = read_mem(pc, 2)
-    nxt = pc + 2
-    hw2 = None
-    if (hw >> 11) in (0b11101, 0b11110, 0b11111):  # first half of a 32-bit instruction
-        hw2 = read_mem(pc + 2, 2)
-        nxt = pc + 4
+    before = None
+    writes = None
+    exit_status = None
+    
+    if (trace is not None):
+        before = cpu.r[:15]
+        writes = []
 
-    try:
+    try:        
+        hw = read_mem(pc, 2)
+        nxt = pc + 2
+        hw2 = None
+        if (hw >> 11) in (0b11101, 0b11110, 0b11111):  # first half of a 32-bit instruction
+            hw2 = read_mem(pc + 2, 2)
+            nxt = pc + 4
+
         instr = decoder.decode(hw, hw2) # return instruction decoded
-        nxt = cpu.execute(instr,cpu, nxt)#execute the instruction, return nxt address if needed
+        if instr.op == Op.SVC:
+            exit_status = svc(instr.n)
+        else:
+            Memory.trace_writes = writes
+            nxt = execute(instr, cpu, nxt)
+        
+    
     except decoder.DecodeFault as error:
         fault(str(error))
     except alu.AlUExceptoin as error:
         fault(str(error))
     except MemError as error:
         fault(str(error))
+    finally:
+        Memory.trace_writes = None
    
-
     cpu.r[15] = nxt & 0xFFFFFFFF
     cpu.instret += 1
-    # TODO: write a trace line here when --trace is given (section 6)
+    if trace is not None:
+        write_trace_entry(trace, pc, hw, hw2, before, writes)
+  
+    return exit_status
 
 def parse_args(argv):
     p = argparse.ArgumentParser(prog="iss")
@@ -234,8 +286,6 @@ def disassemble_text():
 
 
 def main():
-    # TODO: parse the options in section 6
-    
     args = parse_args(sys.argv[1:])
 
 
@@ -246,12 +296,24 @@ def main():
         return
 
     reset()
+    
+    
+    trace_context = (
+        open(args.trace, "w", encoding="ascii")
+        if args.trace is not None
+        else nullcontext(None)
+    )
+    
 
-    while True:
-        if cpu.instret >= args.max_instr:
-            print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
-            sys.exit(254)
-        step()
+    with trace_context as trace:
+        while True:
+            if cpu.instret >= args.max_instr:
+                print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
+                sys.exit(254)
+
+            exit_status = step(trace)
+            if exit_status is not None:
+                sys.exit(exit_status)
 
 
 

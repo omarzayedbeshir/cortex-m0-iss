@@ -188,7 +188,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        return INSTRUCTION(op= Op.ADD, setflags=True,  rd = rdn, rs1= rdn, rs2 = rm )
+        return INSTRUCTION(op= Op.ADC, setflags=True,  rd = rdn, rs1= rdn, rs2 = rm )
 
 #------------------------------
     #ADD immediate
@@ -297,7 +297,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm32 = imm7 << 2              # imm32 = imm7 * 4 , zero extension imm7:00,32
         
     
-        return INSTRUCTION(op=Op.ADD, setflags= True, rd= sp, rs1 = sp ,isImm= True, imm32= imm32)
+        return INSTRUCTION(op=Op.ADD, setflags=False, rd=sp, rs1=sp, isImm=True, imm32=imm32)
 
 #__________________________
     #ADR 
@@ -354,7 +354,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         
 
 
-        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = sp, rs1 = sp, imm32 = imm32)
+        return INSTRUCTION(op=Op.SUB, setflags=False, isImm=True, rd=sp, rs1=sp, imm32=imm32)
 
 
     #__________________________
@@ -381,7 +381,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
       
 
-        return INSTRUCTION(op = Op.RSB, setflags = True, isImm=True, rd = rd, rs1 = rn, imm32 = imm3)
+        return INSTRUCTION(op=Op.RSB, setflags=True, isImm=True, rd=rd, rs1=rn, imm32=0)
 
 
 
