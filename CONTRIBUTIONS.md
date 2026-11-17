@@ -11,6 +11,7 @@
 
 ### Mohammed Al-Kaf (member A)
 - Wrote `prog1.s` and `prog1.dump` (Thumb rewrite of the first RARS HW3 program).
+- Implemented and finalized the Thumb instruction decoder and objdump-style disassembly formatting in `decoder.py`.
 
 ### Youssef Bawahab (member B)
 - Wrote `prog3.s` and `prog3.dump` (Thumb rewrite of the fourth RARS HW3 program).
