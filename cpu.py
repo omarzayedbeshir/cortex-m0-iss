@@ -54,22 +54,22 @@ def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
        #____ load, store, push, pop 
 
       case Op.LDR | Op.LDRH | Op.LDRB | Op.LDRSH | Op.LDRSB:
-            load(cpu, instr)
+            load(instr, cpu)
 
       case Op.STR | Op.STRH | Op.STRB:
-            store(cpu, instr)
+            store(instr, cpu)
 
       case Op.PUSH:
-            exec_push(cpu, instr)
+            exec_push(instr, cpu)
 
       case Op.POP:
-            nxt = exec_pop(cpu, instr, nxt)
+            nxt = exec_pop(instr, cpu, nxt)
 
       case Op.LDM:
-            loadMult(cpu, instr)
+            loadMult(instr, cpu)
 
       case Op.STM:
-            StorMult(cpu, instr) 
+            StorMult(instr, cpu) 
 
       case _:       raise alu.AlUExceptoin("UNDEFINED") #op is INVALID
       

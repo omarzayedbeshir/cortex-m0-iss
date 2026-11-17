@@ -13,69 +13,83 @@
         .global _start
 _start:
         ldr     r0, =prompt
-        svc     #0x11             @ PUTS
+        svc     #0x11             @ PUTS prompt
+        sub     sp, #256          @ input buffer
 
         movs    r4, #0            @ uppercase count
         movs    r5, #0            @ lowercase count
         movs    r6, #0            @ digit count
 
-        loop:   svc     #0x14             @ GETCHAR -> r0
-                cmp     r0, #0
-                blt     done              @ -1 = end of file
-                cmp     r0, #10
-                beq     done              @ newline ends the line
+        movs    r0, #0            @ stdin
+        mov     r1, sp            @ buffer address
+        movs    r2, #255          @ max bytes
+        svc     #0x22             @ READ -> byte count in r0
+        movs    r3, r0            @ bytes left (0 if empty input)
+        mov     r7, sp            @ next byte
 
-                cmp     r0, #'0'
-                blo     loop              @ below '0': not counted
-                cmp     r0, #'9'
-                bls     is_digit          @ '0'..'9'
-                cmp     r0, #'A'
-                blo     loop              @ between '9' and 'A'
-                cmp     r0, #'Z'
-                bls     is_upper          @ 'A'..'Z'
-                cmp     r0, #'a'
-                blo     loop              @ between 'Z' and 'a'
-                cmp     r0, #'z'
-                bhi     loop              @ above 'z'
-                adds    r5, r5, #1        @ 'a'..'z'
-                b       loop
+loop:   cmp     r3, #0
+        beq     done
+        ldrb    r0, [r7]
+        adds    r7, #1
+        subs    r3, #1
+        cmp     r0, #10
+        beq     done              @ newline, end of string
 
-        is_digit:
-                adds    r6, r6, #1
-                b       loop
-        is_upper:
-                adds    r4, r4, #1
-                b       loop
+        movs    r1, r0
+        subs    r1, #'0'
+        cmp     r1, #9
+        bls     is_digit
 
-        done:   ldr     r0, =msg_upper
-                svc     #0x11
-                movs    r0, r4
-                svc     #0x12             @ PUTINT
-                ldr     r0, =newline
-                svc     #0x11
+        movs    r1, r0
+        subs    r1, #'A'
+        cmp     r1, #25
+        bls     is_upper
 
-                ldr     r0, =msg_lower
-                svc     #0x11
-                movs    r0, r5
-                svc     #0x12
-                ldr     r0, =newline
-                svc     #0x11
+        movs    r1, r0
+        subs    r1, #'a'
+        cmp     r1, #25
+        bhi     loop              @ not a letter
+        adds    r5, #1            @ lowercase
+        b       loop
 
-                ldr     r0, =msg_digits
-                svc     #0x11
-                movs    r0, r6
-                svc     #0x12
-                ldr     r0, =newline
-                svc     #0x11
+is_digit:
+        adds    r6, #1
+        b       loop
+is_upper:
+        adds    r4, #1
+        b       loop
 
-                movs    r0, #0
-                svc     #0x00             @ EXIT with status 0
+done:   add     sp, #256          @ free the buffer
 
-            .ltorg                    @ literal pool for the ldr rX, =value constants
+        ldr     r0, =msg_upper
+        svc     #0x11
+        movs    r0, r4
+        svc     #0x12             @ PUTINT
+        ldr     r0, =newline
+        svc     #0x11
+
+        ldr     r0, =msg_lower
+        svc     #0x11
+        movs    r0, r5
+        svc     #0x12
+        ldr     r0, =newline
+        svc     #0x11
+
+        ldr     r0, =msg_digits
+        svc     #0x11
+        movs    r0, r6
+        svc     #0x12
+        ldr     r0, =newline
+        svc     #0x11
+
+        movs    r0, #0
+        svc     #0x00             @ EXIT with status 0
+
+        .ltorg                    @ literal pool for the ldr rX, =value constants
 
         .section .rodata
-prompt:    .asciz  "Enter a string: "
-msg_upper:      .asciz "Uppercase letters: "
-msg_lower:      .asciz "Lowercase letters: "
-msg_digits:     .asciz "Digits: "
-newline:        .asciz "\n"
+prompt:     .asciz "Enter a string: "
+msg_upper:  .asciz "Uppercase letters: "
+msg_lower:  .asciz "Lowercase letters: "
+msg_digits: .asciz "Digits: "
+newline:    .asciz "\n"

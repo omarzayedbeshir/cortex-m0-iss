@@ -379,7 +379,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
       
 
-        return INSTRUCTION(op = Op.RSB, setflags = True, isImm=True, rd = rd, rs1 = rn, imm32 = imm3)
+        return INSTRUCTION(op=Op.RSB, setflags=True, isImm=True, rd=rd, rs1=rn, imm32=0)
 
 
 
@@ -939,7 +939,7 @@ def register_list(mask: int) -> str:
     regs = [register(i) for i in range(16) if (mask >> i) & 1]
     return "{" + ", ".join(regs) + "}"
 
-def disasm(instr: INSTRUCTION, pc: int, *, hw: Optional[int] = None) -> str:
+def disasm(instr: INSTRUCTION, pc: int) -> str:
     op = instr.op
     s = "s" if instr.setflags else "" # adding suffix s for instruction that update flags 
     name = op.value.lower()

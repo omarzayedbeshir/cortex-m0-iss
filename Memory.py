@@ -10,6 +10,7 @@ RAM_BASE, RAM_SIZE = 0x20000000, 256 << 10      # 256 KB
 
 rom = bytearray(ROM_SIZE)
 ram = bytearray(RAM_SIZE)
+trace_writes = None
 
 def region(addr):
     """Return (buffer, offset) for a mapped address, or (None, 0)."""
@@ -33,9 +34,11 @@ def write_mem(addr, value, size):
     buf, off = region(addr)
     if buf is not ram:
         raise MemError("BUS")
-    buf[off:off + size] = (value & ((1 << 8 * size) - 1)).to_bytes(size, "little")
+    value &= (1 << (8 * size)) - 1
+    buf[off:off + size] = value.to_bytes(size, "little")
 
-
+    if (trace_writes is not None):
+        trace_writes.append((addr, value, size))
 
     #___________________ Load and Store  operations __________
 
