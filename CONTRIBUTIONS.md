@@ -21,4 +21,5 @@
 ### Youssef Bawahab (member B)
 -developoing the alu.py with Arithmetic, logic, shifts, flags and branches, including BL, BX and BLX. 
 -Handling the PC and next called instructions addresses.  
+-Update the CPU with the execute function and handling calling.
 
