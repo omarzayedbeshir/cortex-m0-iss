@@ -926,14 +926,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
 COND_NAMES = ("eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le")
 
+OBJDUMP_REGISTER_ALIASES = {10: "sl", 11: "fp", 12: "ip", 13: "sp", 14: "lr", 15: "pc"}
+
 def register(r: int) -> str:
-    if r == 13:
-        return "sp"
-    if r == 14:
-        return "lr"
-    if r == 15:
-        return "pc"
-    return f"r{r}"
+    return OBJDUMP_REGISTER_ALIASES.get(r, f"r{r}")
 
 def register_list(mask: int) -> str:
     regs = [register(i) for i in range(16) if (mask >> i) & 1]
