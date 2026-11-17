@@ -52,7 +52,10 @@ def ADD( instr: INSTRUCTION, cpu: CPU, nxt):
      res = (input_1 + input_2)
      
      if(instr.rd!=15):#Not PC, write to destination
-        cpu.r[instr.rd] = mask32(res)
+        value = mask32(res)
+        if instr.rd == 13:
+            value &= 0xFFFFFFFC
+        cpu.r[instr.rd] = value
      else:#nxt = PC + 4 + operand, bit_0 clear
          nxt = mask32((res) & 0xFFFF_FFFE) 
          
@@ -186,7 +189,7 @@ def MOV(instr: INSTRUCTION, cpu: CPU, nxt):
     res = mask32(val)
     
     if(instr.rd != 15):#if rd is not PC, store it in rd
-       cpu.r[instr.rd] = res
+       cpu.r[instr.rd] = res & 0xFFFFFFFC if instr.rd == 13 else res
     else:#if rd is PC
         nxt = mask32((res) & 0xFFFF_FFFE)      #update nxt (PC + 4)with bit_0 cleared    
     
