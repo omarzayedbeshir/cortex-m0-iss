@@ -79,6 +79,7 @@ class INSTRUCTION:
     n: Optional[int] = None         # for service calls 
     imm32: Optional[int] = None      # Decoded (sign- or zero-extended) immediate
     isImm: bool = False
+    isImm3: bool = False            # this will be used to distinguish ADD/SUB syntax of imm3, imm8 (imm3 always have two regs even they are equal)
     condition: Optional[int] = None       # 4-bit condition code for B<c>
 
     registers: Optional[int] = None  # 16-bit register bitmask for LDM/STM/PUSH/POP

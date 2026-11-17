@@ -188,7 +188,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         rdn = (hw >> 0) & 0x7        # extract rdn from bits 2-0
         rm = (hw >> 3) & 0x7        # extract rm from bits 5-3
 
-        return INSTRUCTION(op= Op.ADD, setflags=True,  rd = rdn, rs1= rdn, rs2 = rm )
+        return INSTRUCTION(op=Op.ADC, setflags=True, rd=rdn, rs1=rdn, rs2=rm)
 
 #------------------------------
     #ADD immediate
@@ -200,7 +200,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm3 = (hw >> 6) & 0x7      # extract imm3 from bits 8-6
         
         
-        return INSTRUCTION(op= Op.ADD, setflags=True,isImm= True,   rd = rd, rs1= rn, imm32 = imm3)
+        return INSTRUCTION(op= Op.ADD, setflags=True,isImm= True, isImm3= True,   rd = rd, rs1= rn, imm32 = imm3)
 
 
     #ADDS <Rdn>,#<imm8>
@@ -240,8 +240,6 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         dm = (hw >> 7) & 0x1        # extract dm from bit 7
         d = (dm << 3) | rdm        # d = dm:rdm
         
-
-
 
         return INSTRUCTION(op=Op.ADD, rd=d, rs1=sp, rs2=d)
         
@@ -297,7 +295,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm32 = imm7 << 2              # imm32 = imm7 * 4 , zero extension imm7:00,32
         
     
-        return INSTRUCTION(op=Op.ADD, setflags= True, rd= sp, rs1 = sp ,isImm= True, imm32= imm32)
+        return INSTRUCTION(op=Op.ADD, setflags= False, rd= sp, rs1 = sp ,isImm= True, imm32= imm32)
 
 #__________________________
     #ADR 
@@ -320,7 +318,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         imm3 = (hw >> 6) & 0x7      # extract imm3 from bits 8-6
 
 
-        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = rd, rs1 = rn, imm32 = imm3)
+        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, isImm3 = True, rd = rd, rs1 = rn, imm32 = imm3)
 
 
     #SUBS <Rdn>,#<imm8> 
@@ -354,7 +352,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
         
 
 
-        return INSTRUCTION(op = Op.SUB, setflags = True, isImm=True, rd = sp, rs1 = sp, imm32 = imm32)
+        return INSTRUCTION(op = Op.SUB, setflags = False, isImm=True, rd = sp, rs1 = sp, imm32 = imm32)
 
 
     #__________________________
@@ -616,7 +614,7 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 
         
 
-        return INSTRUCTION(op = Op.SXTB,  rd = rd, rs1 = rm)
+        return INSTRUCTION(op = Op.SXTH,  rd = rd, rs1 = rm)
 
     
      # UXTH <Rd>,<Rm>
@@ -850,8 +848,10 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 #--------------------------------
 
 
-    # LDM =
-    elif (hw & 0xF800) == 0xC800:      # LDM <Rn>{!},<registers>
+    # LDM 
+     # LDM <Rn>{!},<registers>
+
+    elif (hw & 0xF800) == 0xC800:     
 
         register_list = (hw >> 0) & 0xFF   # extract register_list from bits 7-0
         rn = (hw >> 8) & 0x7               # extract rn from bits 10-8
@@ -939,7 +939,7 @@ def register_list(mask: int) -> str:
     regs = [register(i) for i in range(16) if (mask >> i) & 1]
     return "{" + ", ".join(regs) + "}"
 
-def disasm(instr: INSTRUCTION, pc: int) -> str:
+def disasm(instr: INSTRUCTION, pc: int, *, hw: Optional[int] = None) -> str:
     op = instr.op
     s = "s" if instr.setflags else "" # adding suffix s for instruction that update flags 
     name = op.value.lower()
@@ -948,7 +948,12 @@ def disasm(instr: INSTRUCTION, pc: int) -> str:
     if op == Op.MOV:
         if instr.isImm:
             return f"mov{s}\t{register(instr.rd)}, #{instr.imm32}"
+ 
+
+        if not instr.setflags and instr.rd == instr.rs1 == 8:
+            return "nop"
         return f"mov{s}\t{register(instr.rd)}, {register(instr.rs1)}"
+
 
     if op == Op.MVN:
         return f"mvns\t{register(instr.rd)}, {register(instr.rs1)}"
@@ -960,21 +965,30 @@ def disasm(instr: INSTRUCTION, pc: int) -> str:
         return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs2)}"
 
     # Add & Subtract
+    # Add & Subtract
     if op in (Op.ADD, Op.SUB):
         if instr.isImm:
-            if instr.rd == instr.rs1:
+            # 2-operand form:
+            if instr.rd == instr.rs1 and not instr.isImm3:
                 return f"{name}{s}\t{register(instr.rd)}, #{instr.imm32}"
+            # 3-operand form:
             return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs1)}, #{instr.imm32}"
+
+        if instr.setflags:   # ADDS/SUBS <Rd>,<Rn>,<Rm>, always 3 parameters
+            return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs1)}, {register(instr.rs2)}"
+        # 2-operand register: ADD <Rdn>,<Rm> ( rdn is dest and first operand )or  ADD <Rdm>,SP,<Rdm> (rdm is destinatino and second operand)
         if instr.rd == instr.rs1:
-            return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs2)}"
-        return f"{name}{s}\t{register(instr.rd)}, {register(instr.rs1)}, {register(instr.rs2)}"
+            other = instr.rs2
+        else:
+            other = instr.rs1
+        return f"{name}{s}\t{register(instr.rd)}, {register(other)}"
 
     # Other Arithmetic & Logic
     if op in (Op.ADC, Op.SBC, Op.AND, Op.ORR, Op.EOR, Op.BIC):
         return f"{name}s\t{register(instr.rd)}, {register(instr.rs2)}"
 
     if op == Op.RSB:
-        return f"rsbs\t{register(instr.rd)}, {register(instr.rs1)}, #0"
+        return f"negs\t{register(instr.rd)}, {register(instr.rs1)}"
 
     if op == Op.MUL:
         return f"muls\t{register(instr.rd)}, {register(instr.rs1)}"
@@ -992,16 +1006,14 @@ def disasm(instr: INSTRUCTION, pc: int) -> str:
     # PC-relative ADR
     if op == Op.ADR:
         target = ((pc + 4) & ~3) + instr.imm32
-        return f"adr\t{register(instr.rd)}, {target:x}"
-
+        return f"add\t{register(instr.rd)}, pc, #{instr.imm32}\t@ (adr {register(instr.rd)}, {target:x})" # ADD{<q>} <Rd>, PC, #<const>
     # Loads & Stores
     if op in (Op.LDR, Op.LDRB, Op.LDRH, Op.LDRSB, Op.LDRSH, Op.STR, Op.STRB, Op.STRH):
         if instr.isImm:
             if instr.rs1 == 15:
                 target = ((pc + 4) & ~3) + instr.imm32
                 return f"ldr\t{register(instr.rt)}, [pc, #{instr.imm32}]\t@ ({target:x})"
-            if instr.imm32 == 0:
-                return f"{name}\t{register(instr.rt)}, [{register(instr.rs1)}]"
+            
             return f"{name}\t{register(instr.rt)}, [{register(instr.rs1)}, #{instr.imm32}]"
         return f"{name}\t{register(instr.rt)}, [{register(instr.rs1)}, {register(instr.rs2)}]"
 
@@ -1011,10 +1023,10 @@ def disasm(instr: INSTRUCTION, pc: int) -> str:
 
     if op == Op.LDM:
         wb = "!" if instr.write_back else ""
-        return f"ldm\t{register(instr.rs1)}{wb}, {register_list(instr.registers)}"
+        return f"ldmia\t{register(instr.rs1)}{wb}, {register_list(instr.registers)}"
 
     if op == Op.STM:
-        return f"stm\t{register(instr.rs1)}!, {register_list(instr.registers)}"
+        return f"stmia\t{register(instr.rs1)}!, {register_list(instr.registers)}"
 
     # Branches & System
     if op == Op.B:

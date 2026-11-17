@@ -39,6 +39,7 @@ _start:
 	bl count_sum
 	bl print_count_sum
 
+	movs r0, #0
     svc #0x00
 
 .thumb_func
