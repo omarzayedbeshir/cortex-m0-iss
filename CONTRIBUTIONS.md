@@ -14,4 +14,12 @@
 
 ### Youssef Bawahab (member B)
 - Wrote `prog3.s` and `prog3.dump` (Thumb rewrite of the fourth RARS HW3 program).
+- Wrote the CPU class, instructions (shared with Moahmmed)
+
+
+## CP2
+### Youssef Bawahab (member B)
+-developoing the alu.py with Arithmetic, logic, shifts, flags and branches, including BL, BX and BLX. 
+-Handling the PC and next called instructions addresses.  
+-Update the CPU with the execute function and handling calling.
 
