@@ -18,6 +18,11 @@
 
 
 ## CP2
+### Omar Zayed (member C)
+- Implemented the CP2 supervisor call services, including hexadecimal output and console input.
+- Added instruction tracing and fixed execution issues across the simulator, CPU, decoder, and memory handling.
+- Activated and corrected CPU reset, including stack pointer alignment and CPU state references.
+
 ### Youssef Bawahab (member B)
 -developoing the alu.py with Arithmetic, logic, shifts, flags and branches, including BL, BX and BLX. 
 -Handling the PC and next called instructions addresses.  
