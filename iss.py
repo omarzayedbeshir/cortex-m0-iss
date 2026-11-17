@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
-from asyncio.windows_events import ERROR_CONNECTION_REFUSED
 import sys
 import argparse
 import decoder
