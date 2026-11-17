@@ -11,7 +11,9 @@
 
 ### Mohammed Al-Kaf (member A)
 - Wrote `prog1.s` and `prog1.dump` (Thumb rewrite of the first RARS HW3 program).
-- Implemented and finalized the Thumb instruction decoder and objdump-style disassembly formatting in `decoder.py`.
+- Designed the instruction representation (`Op` enum and `INSTRUCTION` dataclass in `instruction.py`) with Youssef.
+- Wrote the Thumb instruction decoder (`decode` in `decoder.py`) covering all 43 required ARMv6-M instructions 
+- Wrote the disassembler (`disasm`, `register`, `register_list`) to match GNU `objdump` formatting for `--disasm`.
 
 ### Youssef Bawahab (member B)
 - Wrote `prog3.s` and `prog3.dump` (Thumb rewrite of the fourth RARS HW3 program).
@@ -19,13 +21,19 @@
 
 
 ## CP2
+
 ### Omar Zayed (member C)
 - Implemented the CP2 supervisor call services, including hexadecimal output and console input.
 - Added instruction tracing and fixed execution issues across the simulator, CPU, decoder, and memory handling.
 - Activated and corrected CPU reset, including stack pointer alignment and CPU state references.
 
+### Mohammed Al-Kaf (member A)
+- Implemented effective address calculation (`Address`) in `Memory.py` for immediate-offset, SP-relative, PC-relative, and register-offset addressing modes.
+- Implemented word load and store operations (`load`, `store`) for `LDR` and `STR`.
+- Implemented stack operations for `PUSH` and `POP`.
+
+
 ### Youssef Bawahab (member B)
 -developoing the alu.py with Arithmetic, logic, shifts, flags and branches, including BL, BX and BLX. 
 -Handling the PC and next called instructions addresses.  
 -Update the CPU with the execute function and handling calling.
-
