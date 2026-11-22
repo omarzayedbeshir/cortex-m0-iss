@@ -927,6 +927,12 @@ def decode(hw: int, hw2: Optional[int] = None) -> INSTRUCTION:
 COND_NAMES = ("eq", "ne", "cs", "cc", "mi", "pl", "vs", "vc", "hi", "ls", "ge", "lt", "gt", "le")
 
 def register(r: int) -> str:
+    if r == 10: 
+        return "sl"
+    if r == 11: 
+        return "fp"
+    if r == 12: 
+        return "ip"
     if r == 13:
         return "sp"
     if r == 14:
