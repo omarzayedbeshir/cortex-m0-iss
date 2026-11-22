@@ -26,6 +26,8 @@ python3 iss.py [--disasm] [--trace FILE] [--max-instr N] [--seed N] [--cpu {m0,m
 | `--max-instr N` | Limit execution to N instructions. The default is 100,000,000. Use a lower limit when debugging loops. |
 | `--seed N`, `--cpu {m0,m0plus}` | Accepted for compatibility with the course interface. Random generation and cycle timing are outside the current CP2 implementation. |
 
+The `--disasm` output follows the default GNU ARM `objdump` register naming. It uses `r0` through `r9`, then `sl` for `r10`, `fp` for `r11`, `ip` for `r12`, `sp` for `r13`, `lr` for `r14`, and `pc` for `r15`.
+
 ```bash
 program=csce2303-m0-iss-student-v1.1/public-tests/cp2/fact/prog.dump
 python3 iss.py --disasm "$program"
