@@ -54,10 +54,10 @@ The trace records the instruction address and encoding, changed registers, memor
 
 ## Team programs
 
-The Thumb assembly sources and prebuilt dumps are in [the CP1 programs directory](csce2303-m0-iss-student-v1.1/public-tests/cp1/programs). Pipe the sample inputs into the simulator to run them with the CP2 implementation.
+The Thumb assembly sources and prebuilt dumps are in [the CP1 programs directory](programs/). Pipe the sample inputs into the simulator to run them with the CP2 implementation.
 
 ```bash
-programs=csce2303-m0-iss-student-v1.1/public-tests/cp1/programs
+programs=programs
 
 # Program 1 expects a first value, last value, and step.
 printf '1\n10\n2\n' | python3 iss.py "$programs/prog1.dump"
@@ -89,11 +89,11 @@ python3 -m unittest discover -s tests -v
 
 The CP2 runner checks stdout, exit status, and the instruction trace against the supplied fixtures. The expected result for this checkout is **9 passing public CP2 cases and 3 passing unit tests**.
 
-Run the public CP1 disassembly fixtures explicitly. The grouped `cp1` command also picks up the team's `cp1/programs` directory and fails when it looks for a fixture's `expected.out`.
+Run the grouped public CP1 disassembly tests.
 
 ```bash
 runner=csce2303-m0-iss-student-v1.1/public-tests/run_tests.py
-python3 "$runner" --iss 'python3 iss.py' cp1/allinsn cp1/fact cp1/hello
+python3 "$runner" --iss 'python3 iss.py' cp1
 ```
 
 To check a dump against the course implementation, open [refiss v1.1](csce2303-m0-iss-student-v1.1/refiss-v1.1.html) in a browser and run the same dump with the same input.
@@ -112,10 +112,7 @@ The [course build guide](csce2303-m0-iss-student-v1.1/BUILDING.md) documents the
 | [decoder.py](decoder.py) | Thumb instruction decoding and disassembly |
 | [alu.py](alu.py) | Arithmetic, logic, shifts, flags, and branch execution |
 | [Memory.py](Memory.py) | ROM and RAM, memory access, load/store addressing, and stack operations |
+| [programs/](programs/) | Team-written CP1 Thumb assembly programs and prebuilt dumps |
 | [tests/](tests/) | Team-written Python unit tests |
 | [Course starter kit](csce2303-m0-iss-student-v1.1/) | Templates, reference simulator, examples, and public test fixtures |
 | [CONTRIBUTIONS.md](CONTRIBUTIONS.md) | Team contributions by checkpoint |
-
-## CP2 submission
-
-The [project handout](CSCE2303_M0_ISS_Handout.pdf) specifies the CP2 requirements and grading procedure. Tag the tested revision as `cp2` with the simulator source, run instructions, tests, and contribution notes. Push the tag, verify repository access for the instructor and TAs, and submit the repository URL and tag through Canvas.
