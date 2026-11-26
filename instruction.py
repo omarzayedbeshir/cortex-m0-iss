@@ -81,14 +81,15 @@ class INSTRUCTION:
     isImm: bool = False
     isImm3: bool = False            # this will be used to distinguish ADD/SUB syntax of imm3, imm8 (imm3 always have two regs even they are equal)
     condition: Optional[int] = None       # 4-bit condition code for B<c>
-
+    branch_taken: bool = False            #flag Whether branch taken 
+    memory_accesses: int = 0              #
     registers: Optional[int] = None  # 16-bit register bitmask for LDM/STM/PUSH/POP
     write_back: bool = False              # Write-back flag for LDM/STM/PUSH/POP
     index: bool = True 
     add: bool = True 
 
 
-                # True if instruction updates APSR flags
+    # True if instruction updates APSR flags
     setflags: bool = False 
 
 

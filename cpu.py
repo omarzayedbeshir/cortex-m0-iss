@@ -15,6 +15,10 @@ class CPU:
         
         # Instruction retired counter
         self.instret = 0
+        #cycles
+        self.cycles = 0             #total accumulated cycles
+        self.branchPenality = 0     #Cost of taking a branch, = 2 for M0, 1 for M0+
+        
         
       
 def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
