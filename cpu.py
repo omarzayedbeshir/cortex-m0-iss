@@ -1,5 +1,7 @@
 import alu
-from instruction import INSTRUCTION
+import decoder
+from Memory import *
+from instruction import INSTRUCTION, Op
 
 class CPU:
     def __init__(self):
@@ -48,6 +50,27 @@ def execute ( instr: INSTRUCTION, cpu: CPU, nxt):
       case "UXTB" : alu.UXTB(instr, cpu)
       case "UXTH" : alu.UXTH(instr, cpu)
       case "REV"  : alu.REV(instr, cpu)
+
+       #____ load, store, push, pop 
+
+      case Op.LDR | Op.LDRH | Op.LDRB | Op.LDRSH | Op.LDRSB:
+            load(instr, cpu)
+
+      case Op.STR | Op.STRH | Op.STRB:
+            store(instr, cpu)
+
+      case Op.PUSH:
+            exec_push(instr, cpu)
+
+      case Op.POP:
+            nxt = exec_pop(instr, cpu, nxt)
+
+      case Op.LDM:
+            loadMult(instr, cpu)
+
+      case Op.STM:
+            StorMult(instr, cpu) 
+
       case _:       raise alu.AlUExceptoin("UNDEFINED") #op is INVALID
       
   return nxt

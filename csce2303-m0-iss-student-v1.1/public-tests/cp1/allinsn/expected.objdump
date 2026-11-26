@@ -8,7 +8,7 @@ Disassembly of section .text:
  100:	2005      	movs	r0, #5
  102:	4688      	mov	r8, r1
  104:	4648      	mov	r0, r9
- 106:	0011      	movs	r1, r2
+ 106:	0011      	movs	r1, r2            
  108:	43c8      	mvns	r0, r1
  10a:	1888      	adds	r0, r1, r2
  10c:	1cc8      	adds	r0, r1, #3
