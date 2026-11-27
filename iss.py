@@ -176,8 +176,16 @@ def svc(n):
         pass
     elif (n == 0x32):
         pass
-    elif (n == 0x40):
-        pass
+    elif n == 0x40:                            # DUMP_REGS
+        names = (*TRACE_REGISTERS, "pc")
+        fields = []
+        for name, value in zip(names, cpu.r):
+            fields.append(f"{name}={value:08x}")
+        flags = f"{int(cpu.N)}{int(cpu.Z)}{int(cpu.C)}{int(cpu.V)}"
+        fields.append(f"NZCV={flags}")
+        output = " ".join(fields) + "\n"
+        sys.stderr.buffer.write(output.encode("ascii"))
+        sys.stderr.buffer.flush()
     elif (n == 0x41):
         pass
     elif (n == 0x42):
