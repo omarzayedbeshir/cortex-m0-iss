@@ -24,7 +24,7 @@ python3 iss.py [--disasm] [--trace FILE] [--max-instr N] [--seed N] [--cpu {m0,m
 | `--disasm` | Print the instructions in the dump's `.text` section and exit. |
 | `--trace FILE` | Write an execution trace to a file. |
 | `--max-instr N` | Limit execution to N instructions. The default is 100,000,000. Use a lower limit when debugging loops. |
-| `--seed N`, `--cpu {m0,m0plus}` | Accepted for compatibility with the course interface. Random generation and cycle timing are outside the current CP2 implementation. |
+| `--seed N`, `--cpu {m0,m0plus}` | Accepted for compatibility with the course interface. Random generation and cycle timing are final-checkpoint extensions. |
 
 The `--disasm` output follows the default GNU ARM `objdump` register naming. It uses `r0` through `r9`, then `sl` for `r10`, `fp` for `r11`, `ip` for `r12`, `sp` for `r13`, `lr` for `r14`, and `pc` for `r15`.
 
@@ -35,14 +35,18 @@ python3 iss.py --trace /tmp/m0-fact.trace --max-instr 1000 "$program"
 head /tmp/m0-fact.trace
 ```
 
-The trace records the instruction address and encoding, changed registers, memory writes in address order, and the four `NZCV` flags. A traced `EXIT` has its own line. Guest output goes to stdout, and simulator diagnostics go to stderr. Exit status comes from the low byte of the guest's exit argument. The simulator uses 253 for load errors, 254 for the instruction limit, and 255 for faults.
+The trace records the instruction address and encoding, changed registers, instruction memory writes in address order, and the four `NZCV` flags. It includes `EXIT` when enabled and skips faulting instructions and memory writes performed by `READ`. A reset fault leaves an empty trace file when tracing is requested. The console output services use stdout, and diagnostics use stderr. `WRITE` can target either stream. Exit status comes from the low byte of the guest's exit argument. The simulator uses 253 for load errors, 254 for the instruction limit, and 255 for faults.
 
-## CP2 functionality
+## CP3 functionality
 
 - Reset reads the initial stack pointer and Thumb reset vector from memory. The simulator then fetches and executes instructions from the entry point.
-- Execution covers CP2 arithmetic, logic, shifts, condition flags, branches and calls, word loads and stores, and `PUSH` and `POP`.
+- Execution covers the course's 43-instruction Thumb subset, including byte and halfword accesses, `LDM` and `STM`, sign and zero extension, byte reversal, and indirect calls.
 - Memory is little-endian, with 1 MiB of ROM at `0x00000000` and 256 KiB of RAM at `0x20000000`.
-- The course ABI's CP2 console services are available. For a reproducible console run, pipe input into the process or redirect a file. The simulator buffers stdin through EOF on the first input service.
+- The simulator reports `BUS`, `UNALIGNED`, `INVSTATE`, and `UNDEFINED` faults.
+
+### Core services
+
+`GETCHAR`, `GETINT`, and `READ` share an input cursor. The simulator buffers stdin through EOF on the first service that consumes input, so pipe input into the process or redirect a file.
 
 | SVC | Service | Behavior |
 | --- | --- | --- |
@@ -53,10 +57,16 @@ The trace records the instruction address and encoding, changed registers, memor
 | `0x13` | `PUTHEX` | Print `r0` as `0x` followed by eight uppercase hex digits. |
 | `0x14` | `GETCHAR` | Return the next input byte in `r0`, or `-1` at EOF. |
 | `0x15` | `GETINT` | Read a signed decimal integer into `r0`, skipping ASCII whitespace. Return zero when there is no integer. |
+| `0x22` | `READ` | Read up to `r2` bytes from stdin (descriptor `0` in `r0`) into RAM at `r1`. Return the byte count in `r0`, or zero at EOF. |
+| `0x23` | `WRITE` | Write `r2` bytes at `r1` to stdout (descriptor `1`) or stderr (descriptor `2`). Pass the descriptor in `r0`, which receives the byte count. |
+| `0x30` | `INSTRET` | Return the 64-bit retired-instruction count, including this SVC, with the low word in `r0` and the high word in `r1`. |
+| `0x40` | `DUMP_REGS` | Print labeled register values and `NZCV` to stderr. |
+
+`READ` and `WRITE` return `-9` for an invalid descriptor. An invalid memory range raises a `BUS` fault. `READ` checks the bytes it actually transfers.
 
 ## Team programs
 
-The Thumb assembly sources and prebuilt dumps are in [the CP1 programs directory](programs/). Pipe the sample inputs into the simulator to run them with the CP2 implementation.
+The team’s Thumb assembly sources and prebuilt dumps are in [the programs directory](programs/).
 
 ```bash
 programs=programs
@@ -65,7 +75,7 @@ programs=programs
 printf '1\n10\n2\n' | python3 iss.py "$programs/prog1.dump"
 
 # Program 2 counts uppercase letters, lowercase letters, and digits.
-printf 'Hello world.\n' | python3 iss.py "$programs/prog2_valid_for_cp2.dump"
+printf 'Hello world.\n' | python3 iss.py "$programs/prog2.dump"
 
 # Program 3 expects an array length followed by that many integers.
 printf '4\n3\n-1\n8\n2\n' | python3 iss.py "$programs/prog3.dump"
@@ -77,38 +87,31 @@ printf '4\n3\n-1\n8\n2\n' | python3 iss.py "$programs/prog3.dump"
 | Program 2 | 1 uppercase letter, 9 lowercase letters, 0 digits |
 | Program 3 | Sum 12, maximum 8, minimum -1 |
 
-Use `prog2_valid_for_cp2.dump` for CP2. It reads input with `GETCHAR`. The original `prog2.dump` calls `READ` (`SVC 0x22`), a CP3 service still stubbed in this version.
+`prog2.dump` uses the CP3 `READ` service. The CP2 variant, `prog2_valid_for_cp2.dump`, uses `GETCHAR`.
 
 ## Verification
 
-Run the public CP2 fixtures and the local console-service unit tests.
+Run the public CP1 through CP3 fixtures and the local unit tests.
 
 ```bash
 runner=csce2303-m0-iss-student-v1.1/public-tests/run_tests.py
-python3 "$runner" --iss 'python3 iss.py' cp2
+python3 "$runner" --iss 'python3 iss.py' cp1 cp2 cp3
 python3 -m unittest discover -s tests -v
 ```
 
-The CP2 runner checks stdout, exit status, and the instruction trace against the supplied fixtures. The expected result for this checkout is **9 passing public CP2 cases and 3 passing unit tests**.
-
-Run the grouped public CP1 disassembly tests.
-
-```bash
-runner=csce2303-m0-iss-student-v1.1/public-tests/run_tests.py
-python3 "$runner" --iss 'python3 iss.py' cp1
-```
+The expected result is **38 passing public cases** (3 CP1, 9 CP2, and 26 CP3) and **9 passing unit tests**. The public runner compares disassembly for CP1 and checks output, exit status, traces, and fault or debug output where fixtures specify them for CP2 and CP3.
 
 To check a dump against the course implementation, open [refiss v1.1](csce2303-m0-iss-student-v1.1/refiss-v1.1.html) in a browser and run the same dump with the same input.
 
 ## Building a new program dump
 
-The [course build guide](csce2303-m0-iss-student-v1.1/BUILDING.md) documents the Compiler Explorer setup and the optional local GNU Arm toolchain. Start from the supplied assembly template or bare-metal C template and keep the startup code and vector table. Build a linked program with the course settings, generate its section dump, and pass the resulting `.dump` file to `iss.py`. Use the CP2 console services when building a program for this checkpoint.
+The [course build guide](csce2303-m0-iss-student-v1.1/BUILDING.md) documents the Compiler Explorer setup and the optional local GNU Arm toolchain. Start from the supplied assembly template or bare-metal C template and keep the startup code and vector table. Use the core services listed above for program I/O and exit. Build a linked program with the course settings, generate its section dump, and pass the resulting `.dump` file to `iss.py`.
 
 ## Repository layout
 
 | Path | Purpose |
 | --- | --- |
-| [iss.py](iss.py) | Command line, dump loading, reset, fetch loop, console services, and traces |
+| [iss.py](iss.py) | Command line, dump loading, reset, fetch loop, core services, and traces |
 | [cpu.py](cpu.py) | Registers, flags, and instruction dispatch |
 | [instruction.py](instruction.py) | Decoded instruction and opcode definitions |
 | [decoder.py](decoder.py) | Thumb instruction decoding and disassembly |
