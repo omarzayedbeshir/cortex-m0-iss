@@ -342,9 +342,6 @@ def main():
         disassemble_text()
         return
 
-    reset()
-    
-    
     trace_context = (
         open(args.trace, "w", encoding="ascii")
         if args.trace is not None
@@ -353,6 +350,7 @@ def main():
     
 
     with trace_context as trace:
+        reset()
         while True:
             if cpu.instret >= args.max_instr:
                 print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
