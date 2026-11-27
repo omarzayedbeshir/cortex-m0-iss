@@ -87,10 +87,13 @@ class INSTRUCTION:
     write_back: bool = False              # Write-back flag for LDM/STM/PUSH/POP
     index: bool = True 
     add: bool = True 
-
-
     # True if instruction updates APSR flags
     setflags: bool = False 
+    
+    
+        
+        
+   
 
 
           

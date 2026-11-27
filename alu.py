@@ -15,7 +15,10 @@ from instruction import INSTRUCTION, Op
       #field.Decoder should give 32, not zero
       #
       #The offset must  be sign-extended and scaled appropriately by 
-      #the decoder.                                                             |
+      #the decoder.   
+      #
+      # r[15] holds the address of the current instruction; an instruction 
+      # that reads pc must see r[15] + 4.                                                          |
       #-------------------------------------------------------------------------#   
     
 #temporary class exceptoin
@@ -163,18 +166,11 @@ def MUL(instr: INSTRUCTION, cpu: CPU):
     res = mask32(res)
     cpu.r[instr.rd] = res
     
-    #in-palce flag update
-    if((res & 0x8000_0000)):#check negative flag
-        cpu.N = True
-    else:
-         cpu.N = False   
-    if(res == 0): #check zero
-        cpu.Z = True 
-    else: 
-        cpu.Z = False
-        
+    #in-palce flag update N&Z only
+    set_nz(cpu, res)       
 
     return
+
 def MOV(instr: INSTRUCTION, cpu: CPU, nxt):
     # MOVS Rd, #imm8
     # MOV <Rd>,<rs2> (high/all registers)
@@ -197,8 +193,8 @@ def MOV(instr: INSTRUCTION, cpu: CPU, nxt):
     
     
     if(instr.setflags): #low registers, updates N and Z
-        cpu.N = bool(res & 0x8000_0000)
-        cpu.Z = bool(res == 0)
+         #in-palce flag update N&Z only
+         set_nz(cpu, res)
     
     return nxt
 
@@ -217,15 +213,8 @@ def AND(instr: INSTRUCTION, cpu: CPU):
     res = input_1 & input_2
     cpu.r[instr.rd] = mask32(res) 
     
-    #in-palce flag update
-    if((res & 0x8000_0000)):#check negative flag
-        cpu.N = True
-    else:
-         cpu.N = False   
-    if(res == 0): #check zero
-        cpu.Z = True 
-    else: 
-        cpu.Z = False
+    #in-palce flag update N&Z only
+    set_nz(cpu, res)
     
     return
 
@@ -236,16 +225,8 @@ def ORR(instr: INSTRUCTION, cpu: CPU):
     res = input_1 | input_2
     cpu.r[instr.rd] = mask32(res)
     
-    #in-palce flag update
-    if((res & 0x8000_0000)):#check negative flag
-        cpu.N = True
-    else:
-         cpu.N = False   
-    if(res == 0): #check zero
-        cpu.Z = True 
-    else: 
-        cpu.Z = False
-    
+    #in-palce flag update N&Z only
+    set_nz(cpu, res)
     return
 
 def EOR(instr: INSTRUCTION, cpu: CPU):
@@ -255,9 +236,8 @@ def EOR(instr: INSTRUCTION, cpu: CPU):
     res = input_1 ^ input_2
     cpu.r[instr.rd] = mask32(res)
     
-    #in-palce flag update
-    cpu.N = bool(res & 0x8000_0000)
-    cpu.Z = bool(res == 0)
+    #in-palce flag update N&Z only
+    set_nz(cpu, res)
     
     return
 #bit Clear : BICS r0, r1
@@ -268,9 +248,8 @@ def BIC(instr: INSTRUCTION, cpu: CPU):
     res = input_1 &(~input_2)   # r0 & (not r1)
     cpu.r[instr.rd] = mask32(res)
     
-    #in-palce flag update
-    cpu.N = bool(res & 0x8000_0000)
-    cpu.Z = bool(res == 0)
+    #in-palce flag update N&Z only
+    set_nz(cpu, res)
     
     return
 #TST r0, r1, like AND, no store 
@@ -281,9 +260,8 @@ def TST(instr: INSTRUCTION, cpu: CPU):
     res = input_1 & input_2
     res = mask32(res)
     
-    #in-palce flag update
-    cpu.N = bool(res & 0x8000_0000)
-    cpu.Z = bool(res == 0)
+    #in-palce flag update N&Z only
+    set_nz(cpu, res)
     
     return
  
@@ -296,10 +274,11 @@ def MVN(instr: INSTRUCTION, cpu: CPU): #BITWISE NOT
     
     cpu.r[instr.rd] = res
     
+    #in-palce flag update N&Z only
     if(instr.setflags):
-        cpu.N = bool(res & 0x8000_0000)
-        cpu.Z = bool(res == 0)
-        
+         set_nz(cpu, res)
+    
+    return
 
 
 #----------------------------- LOGICAL -----------------------------
@@ -357,21 +336,14 @@ def ASR(instr: INSTRUCTION, cpu: CPU):
     input_1 = toSigned32(input_1)
         
     res = mask32((input_1 >> shiftby))
-    
-    #check sign -ultranative way
-    # if(input_1 & 0x8000_0000):
-    #     if(shiftby>=32):
-    #         res = 0xFFFF_FFFF
-    #     else:
-    #         mask =  ((pow(2, shiftby))-1) << (32 - shiftby) 
-    #         res = res | mask         
+      
          
     cpu.r[instr.rd] = res 
     
     #inplace handling flags
     if(instr.setflags):
-        cpu.N = bool(res & 0x80000000)     #is negative? 1:0
-        cpu.Z = (res==0)             #is Zero
+        #in-palce flag update N&Z only
+        set_nz(cpu, res)
         if(0<shiftby<32):                  
             cpu.C = bool((input_1>>(shiftby-1)) & 1)
         elif(shiftby>=32):
@@ -396,8 +368,8 @@ def ROR(instr: INSTRUCTION, cpu: CPU):
     cpu.r[instr.rd]  = mask32(res)
      
     if(instr.setflags):
-       cpu.N = bool(res & 0x8000_0000)  #if MSB is 1
-       cpu.Z = bool(res == 0) 
+       #in-palce flag update N&Z only
+       set_nz(cpu, res)
        cpu.C = bool (res & 0x8000_0000) if (not shiftby==0) else cpu.C #change only when shift not zero
     
     return
@@ -603,7 +575,12 @@ def handleFlags_LS(cpu: CPU, res, num, shift, shiftLeft=1):
         elif(shift > 32):
             cpu.C = False
     #no change when shift =0. cpu.V no need to update
-
+def set_nz(cpu: CPU, x):
+    mask32(x)
+    cpu.N = x >> 31
+    cpu.Z = int(x == 0)
+    return
+    
  
 # def REV16(instr: INSTRUCTION, cpu: CPU):
 #     #reverse lower 2 bytes and upper 2 bytes 
