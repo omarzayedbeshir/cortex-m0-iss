@@ -150,8 +150,24 @@ def svc(n):
             write_mem(address + offset, byte, 1)
         std_pointer += bytes_read
         cpu.r[0] = bytes_read
-    elif (n == 0x23):
-        pass
+    elif n == 0x23:                            # WRITE
+        descriptor, address, count = cpu.r[:3]
+        if descriptor not in (1, 2):
+            cpu.r[0] = 0xFFFFFFF7
+            return
+        if count == 0:
+            cpu.r[0] = 0
+            return
+
+        buffer, offset = region(address)
+        if buffer is None or offset + count > len(buffer):
+            raise MemError("BUS")
+        if descriptor == 1:
+            stream = sys.stdout
+        else:
+            stream = sys.stderr
+        stream.buffer.write(buffer[offset:offset + count])
+        cpu.r[0] = count
     elif (n == 0x30):
         pass
     elif (n == 0x31):
