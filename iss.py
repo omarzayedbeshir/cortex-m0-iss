@@ -127,8 +127,29 @@ def svc(n):
         if (token):
             value = int(token)
         cpu.r[0] = value & 0xFFFFFFFF
-    elif (n == 0x22):
-        pass
+    elif n == 0x22:                            # READ
+        descriptor, address, count = cpu.r[:3]
+        if descriptor != 0:
+            cpu.r[0] = 0xFFFFFFF7
+            return
+        if count == 0:
+            cpu.r[0] = 0
+            return
+
+        if stdin_data is None:
+            stdin_data = sys.stdin.buffer.read()
+        data = stdin_data[std_pointer:std_pointer + count]
+        bytes_read = len(data)
+        if bytes_read == 0:
+            cpu.r[0] = 0
+            return
+
+        if address < RAM_BASE or address + bytes_read > RAM_BASE + RAM_SIZE:
+            raise MemError("BUS")
+        for offset, byte in enumerate(data):
+            write_mem(address + offset, byte, 1)
+        std_pointer += bytes_read
+        cpu.r[0] = bytes_read
     elif (n == 0x23):
         pass
     elif (n == 0x30):
