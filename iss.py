@@ -168,8 +168,10 @@ def svc(n):
             stream = sys.stderr
         stream.buffer.write(buffer[offset:offset + count])
         cpu.r[0] = count
-    elif (n == 0x30):
-        pass
+    elif n == 0x30:                            # INSTRET
+        count = cpu.instret + 1
+        cpu.r[0] = count & 0xFFFFFFFF
+        cpu.r[1] = (count >> 32) & 0xFFFFFFFF
     elif (n == 0x31):
         pass
     elif (n == 0x32):
