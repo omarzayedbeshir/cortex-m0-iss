@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """iss.py -- CSCE 2303 Cortex-M0 simulator skeleton.   Run: python3 iss.py prog.dump"""
+from math import exp
 import sys
 import argparse
 import decoder
-from cpu import CPU, execute
-from Memory import *
+from cpu import CPU, CPUExceptoin, execute
+from Memory import *    
 import Memory
 from contextlib import nullcontext
 import re
@@ -65,24 +66,6 @@ def load_dump(path):
         else: # if line is empty after we removed new lines and spaces or any of cases not above 
             continue
 
-def reset():
-    cpu.r[:] = [0] * 16
-    cpu.N = cpu.Z = cpu.C = cpu.V = False
-    cpu.instret = 0
-
-
-    cpu.r[13] = read_mem(0, 4) & 0xFFFFFFFC # initial sp
-    pc = read_mem(4, 4) # reset vector
-    cpu.r[15] = pc # diagnostic uses the reset vector
-    if not (pc & 1):
-        fault("INVSTATE")
-    cpu.r[15] = pc & ~1
-    cpu.r[14] = 0xFFFFFFFF
-
-
-def set_nz(x):
-    cpu.N = x >> 31
-    cpu.Z = int(x == 0)
 
 stdin_data = None
 std_pointer = 0
@@ -271,6 +254,7 @@ def step(trace=None):
    
     cpu.r[15] = nxt & 0xFFFFFFFF
     cpu.instret += 1
+    cpu.cycles += cpu.instrCycles(cpu, instr)
     if trace is not None:
         write_trace_entry(trace, pc, hw, hw2, before, writes)
   
@@ -341,7 +325,13 @@ def main():
     if args.disasm:
         disassemble_text()
         return
-
+    
+    try:
+        cpu.reset()
+    except CPUExceptoin as error:
+        fault(str(error))
+    
+    
     trace_context = (
         open(args.trace, "w", encoding="ascii")
         if args.trace is not None
