@@ -254,7 +254,7 @@ def step(trace=None):
    
     cpu.r[15] = nxt & 0xFFFFFFFF
     cpu.instret += 1
-    cpu.cycles += cpu.instrCycles(cpu, instr)
+    cpu.cycles += cpu.instrCycles(instr)
     if trace is not None:
         write_trace_entry(trace, pc, hw, hw2, before, writes)
   
@@ -340,7 +340,7 @@ def main():
     
 
     with trace_context as trace:
-        reset()
+        cpu.reset()
         while True:
             if cpu.instret >= args.max_instr:
                 print(f"LIMIT at pc=0x{cpu.r[15]:08x}", file=sys.stderr)
